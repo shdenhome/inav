@@ -18,6 +18,7 @@
 #include "drivers/ina2xx.h"
 
 #define INA2XX_REG_VBUS             0x05
+#define INA2XX_REG_VSHUNT           0x04
 #define INA2XX_REG_CURRENT          0x07
 #define INA2XX_REG_CONFIG           0x00
 #define INA2XX_REG_SHUNT_CAL        0x02
@@ -216,6 +217,46 @@ bool ina2xxReadCurrent(ina2xxDev_t *dev, int16_t *centiAmps)
     }
 
     *centiAmps = (int16_t)result;
+    return true;
+}
+
+bool ina2xxReadShuntVoltage(ina2xxDev_t *dev, int32_t *microVolts)
+{
+    if (!dev || !microVolts) {
+        return false;
+    }
+
+    int64_t result;
+    if (dev->type == INA2XX_DEVICE_228) {
+        uint32_t raw;
+        if (!ina2xxReadRegister24(dev, INA2XX_REG_VSHUNT, &raw)) {
+            return false;
+        }
+
+        int32_t signedResult = raw >> 4;
+        if (signedResult & 0x80000) {
+            signedResult -= 0x100000;
+        }
+        // INA228 VSHUNT has a 312.5 nV/LSB resolution.
+        result = ((int64_t)signedResult * 3125 + (signedResult >= 0 ? 5000 : -5000)) / 10000;
+    } else if (dev->type == INA2XX_DEVICE_238) {
+        uint16_t raw;
+        if (!ina2xxReadRegister16(dev, INA2XX_REG_VSHUNT, &raw)) {
+            return false;
+        }
+
+        // INA238 VSHUNT has a 5 uV/LSB resolution.
+        result = (int16_t)raw * 5;
+    } else {
+        return false;
+    }
+
+    if (result > INT32_MAX) {
+        result = INT32_MAX;
+    } else if (result < INT32_MIN) {
+        result = INT32_MIN;
+    }
+    *microVolts = (int32_t)result;
     return true;
 }
 

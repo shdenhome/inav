@@ -60,6 +60,11 @@ typedef enum {
     BAT_VOLTAGE_SAG_COMP
 } batVoltageSource_e;
 
+typedef enum {
+    BATTERY2_SENSOR_I2C,
+    BATTERY2_SENSOR_CAN,
+} battery2Sensor_e;
+
 typedef struct batteryMetersConfig_s {
 
 #ifdef USE_ADC
@@ -104,6 +109,11 @@ typedef struct battery2Config_s {
     uint16_t cellDetect;            // centivolts per cell
     uint16_t cellWarning;           // centivolts per cell
     uint16_t cellCritical;          // centivolts per cell
+    uint8_t voltageEnabled;
+    uint8_t voltageSensor;
+    uint8_t currentEnabled;
+    uint8_t currentSensor;
+    uint8_t canBatteryId;
 } battery2Config_t;
 
 typedef struct batteryProfile_s {

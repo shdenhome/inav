@@ -1058,6 +1058,11 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         sbufWriteU16(dst, battery2Config()->cellDetect);
         sbufWriteU16(dst, battery2Config()->cellWarning);
         sbufWriteU16(dst, battery2Config()->cellCritical);
+        sbufWriteU8(dst, battery2Config()->voltageEnabled);
+        sbufWriteU8(dst, battery2Config()->voltageSensor);
+        sbufWriteU8(dst, battery2Config()->currentEnabled);
+        sbufWriteU8(dst, battery2Config()->currentSensor);
+        sbufWriteU8(dst, battery2Config()->canBatteryId);
         break;
 
 #ifdef USE_GPS
@@ -2590,7 +2595,7 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
         break;
 
     case MSP2_INAV_SET_BATTERY2_CONFIG:
-        if (dataSize != 15) {
+        if (dataSize != 15 && dataSize != 20) {
             return MSP_RESULT_ERROR;
         }
 
@@ -2604,9 +2609,24 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
                 .cellDetect = sbufReadU16(src),
                 .cellWarning = sbufReadU16(src),
                 .cellCritical = sbufReadU16(src),
+                .voltageEnabled = battery2Config()->voltageEnabled,
+                .voltageSensor = battery2Config()->voltageSensor,
+                .currentEnabled = battery2Config()->currentEnabled,
+                .currentSensor = battery2Config()->currentSensor,
+                .canBatteryId = battery2Config()->canBatteryId,
             };
 
+            if (dataSize == 20) {
+                config.voltageEnabled = sbufReadU8(src);
+                config.voltageSensor = sbufReadU8(src);
+                config.currentEnabled = sbufReadU8(src);
+                config.currentSensor = sbufReadU8(src);
+                config.canBatteryId = sbufReadU8(src);
+            }
+
             if (config.voltageScale == 0 || config.currentScale == 0 || config.cells > 12
+                || config.voltageEnabled > 1 || config.currentEnabled > 1
+                || config.voltageSensor > BATTERY2_SENSOR_CAN || config.currentSensor > BATTERY2_SENSOR_CAN
                 || config.cellDetect < 250 || config.cellDetect > 500
                 || config.cellCritical < 250 || config.cellCritical > 450
                 || config.cellWarning < 250 || config.cellWarning > 450

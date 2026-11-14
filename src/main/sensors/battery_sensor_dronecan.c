@@ -32,6 +32,7 @@
 
 #include "common/utils.h"
 #include "sensors/battery_sensor_dronecan.h"
+#include "sensors/battery.h"
 
 static uint16_t dronecanVbat;
 static uint16_t dronecanAmperage;
@@ -48,8 +49,19 @@ uint16_t dronecanBattSensorGetAmperage(void)
 
 void dronecanBatterySensorReceiveInfo(struct uavcan_equipment_power_BatteryInfo *pbatteryInfo)
 {
-    dronecanVbat = (uint16_t)roundf(pbatteryInfo->voltage * 100.0F);
-    dronecanAmperage = (uint16_t)roundf(pbatteryInfo->current * 100.0F);
+    const uint16_t voltage = (uint16_t)roundf(pbatteryInfo->voltage * 100.0F);
+    const int16_t amperage = (int16_t)roundf(pbatteryInfo->current * 100.0F);
+    battery2ReceiveCanInfo(pbatteryInfo->battery_id, voltage, amperage);
+
+    // Keep the primary CAN meter on the primary battery. A configured
+    // secondary CAN battery is consumed by battery2ReceiveCanInfo above.
+    const battery2Config_t *battery2 = battery2Config();
+    const bool battery2UsesCan = (battery2->voltageEnabled && battery2->voltageSensor == BATTERY2_SENSOR_CAN)
+        || (battery2->currentEnabled && battery2->currentSensor == BATTERY2_SENSOR_CAN);
+    if (pbatteryInfo->battery_id != battery2->canBatteryId || !battery2UsesCan) {
+        dronecanVbat = voltage;
+        dronecanAmperage = (uint16_t)amperage;
+    }
 };
 
 #endif

@@ -28,5 +28,6 @@ typedef struct ina2xxDev_s {
 bool ina2xxInit(ina2xxDev_t *dev, I2CDevice i2cBus, uint8_t i2cAddress, uint8_t index);
 void ina2xxDeInit(ina2xxDev_t *dev);
 bool ina2xxReadBusVoltage(ina2xxDev_t *dev, uint16_t *centiVolts);
+bool ina2xxReadShuntVoltage(ina2xxDev_t *dev, int32_t *microVolts);
 bool ina2xxReadCurrent(ina2xxDev_t *dev, int16_t *centiAmps);
 

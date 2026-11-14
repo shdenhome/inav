@@ -129,6 +129,7 @@ uint16_t getBattery2Voltage(void);
 int16_t getBattery2Amperage(void);
 uint32_t getBattery2MahDrawn(void);
 uint8_t getBattery2CellCount(void);
+void battery2ReceiveCanInfo(uint8_t batteryId, uint16_t voltage, int16_t amperage);
 
 uint8_t calculateBatteryPercentage(void);
 float calculateThrottleCompensationFactor(void);

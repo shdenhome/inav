@@ -17,22 +17,31 @@
 #include "config/parameter_group_ids.h"
 #include "drivers/ina2xx.h"
 #include "sensors/battery.h"
+#if defined(USE_DRONECAN)
+#include "sensors/battery_sensor_dronecan.h"
+#endif
 
 #define BATTERY2_READ_INTERVAL_US      100000
 #define BATTERY2_MAH_DIVISOR           360000000LL
 #define BATTERY2_VOLTAGE_HYSTERESIS    10
+#define BATTERY2_CAN_TIMEOUT_MS        1500
 
 PG_REGISTER_WITH_RESET_TEMPLATE(battery2Config_t, battery2Config, PG_BATTERY2_CONFIG, 1);
 
 PG_RESET_TEMPLATE(battery2Config_t, battery2Config,
     .voltageScale = 1000,
     .voltageOffset = 0,
-    .currentScale = 1000,
+    .currentScale = 2,
     .currentOffset = 0,
     .cells = 0,
     .cellDetect = 430,
     .cellWarning = 350,
-    .cellCritical = 330
+    .cellCritical = 330,
+    .voltageEnabled = 1,
+    .voltageSensor = BATTERY2_SENSOR_I2C,
+    .currentEnabled = 1,
+    .currentSensor = BATTERY2_SENSOR_I2C,
+    .canBatteryId = 1
 );
 
 static uint16_t battery2Voltage;
@@ -45,6 +54,10 @@ static bool battery2Ambiguous;
 static bool battery2HasPreviousSample;
 static int64_t battery2MAhAccumulator;
 static timeUs_t battery2PollElapsed;
+static uint16_t battery2CanVoltage;
+static int16_t battery2CanAmperage;
+static uint32_t battery2CanLastUpdateMs;
+static bool battery2CanSampleReceived;
 
 #if defined(USE_BATTERY2_INA2XX)
 static ina2xxDev_t battery2Ina;
@@ -88,8 +101,35 @@ void battery2Init(void)
     battery2MAhAccumulator = 0;
     battery2PollElapsed = 0;
 
+    // Older battery2 configs used a 1000-based multiplier for current.
+    // Convert the old unity default to the Matek 200 uOhm shunt scale
+    // (0.2 mV/A, represented in 0.1 mV/A units).
+    if (battery2Config()->currentScale >= 100) {
+        battery2ConfigMutable()->currentScale = 2;
+        battery2ConfigMutable()->currentOffset = 0;
+    }
+
 #if defined(USE_BATTERY2_INA2XX)
-    battery2DetectSensor();
+    if ((battery2Config()->voltageEnabled && battery2Config()->voltageSensor == BATTERY2_SENSOR_I2C)
+        || (battery2Config()->currentEnabled && battery2Config()->currentSensor == BATTERY2_SENSOR_I2C)) {
+        battery2DetectSensor();
+    }
+#endif
+}
+
+void battery2ReceiveCanInfo(uint8_t batteryId, uint16_t voltage, int16_t amperage)
+{
+#if defined(USE_DRONECAN)
+    if (batteryId == battery2Config()->canBatteryId) {
+        battery2CanVoltage = voltage;
+        battery2CanAmperage = amperage;
+        battery2CanLastUpdateMs = millis();
+        battery2CanSampleReceived = true;
+    }
+#else
+    UNUSED(batteryId);
+    UNUSED(voltage);
+    UNUSED(amperage);
 #endif
 }
 
@@ -100,10 +140,10 @@ static uint16_t battery2ApplyVoltageCalibration(uint16_t rawVoltage)
     return (uint16_t)constrain(calibrated, 0, UINT16_MAX);
 }
 
-static int16_t battery2ApplyCurrentCalibration(int16_t rawCurrent)
+static int16_t battery2ApplyCurrentCalibration(int32_t shuntMicroVolts)
 {
-    const int32_t calibrated = ((int32_t)rawCurrent * battery2Config()->currentScale / 1000)
-        + battery2Config()->currentOffset;
+    const int32_t calibrated = (shuntMicroVolts - (int32_t)battery2Config()->currentOffset * 1000)
+        / MAX(1, battery2Config()->currentScale);
     return (int16_t)constrain(calibrated, INT16_MIN, INT16_MAX);
 }
 
@@ -171,12 +211,6 @@ static void battery2UpdateVoltageState(void)
 
 void battery2Update(timeUs_t timeDelta)
 {
-#if defined(USE_BATTERY2_INA2XX)
-    if (!battery2Ina.busDev || battery2Ambiguous) {
-        battery2State = BATTERY2_UNAVAILABLE;
-        return;
-    }
-
     battery2PollElapsed += timeDelta;
     if (battery2PollElapsed < BATTERY2_READ_INTERVAL_US) {
         return;
@@ -185,21 +219,57 @@ void battery2Update(timeUs_t timeDelta)
     const timeUs_t sampleTime = battery2PollElapsed;
     battery2PollElapsed = 0;
 
-    uint16_t rawVoltage;
-    int16_t rawCurrent;
-    if (!ina2xxReadBusVoltage(&battery2Ina, &rawVoltage)
-        || !ina2xxReadCurrent(&battery2Ina, &rawCurrent)) {
-        battery2Voltage = 0;
-        battery2Amperage = 0;
-        battery2Present = false;
+    const battery2Config_t *config = battery2Config();
+    bool voltageAvailable = !config->voltageEnabled;
+    bool currentAvailable = !config->currentEnabled;
+    uint16_t voltage = 0;
+    int16_t amperage = 0;
+    bool voltageIsCan = false;
+    const bool canFresh = battery2CanSampleReceived
+        && (millis() - battery2CanLastUpdateMs) <= BATTERY2_CAN_TIMEOUT_MS;
+
+#if defined(USE_BATTERY2_INA2XX)
+    if (battery2Ina.busDev && !battery2Ambiguous) {
+        uint16_t rawVoltage;
+        int32_t rawShuntVoltage;
+        if (config->voltageEnabled && config->voltageSensor == BATTERY2_SENSOR_I2C
+            && ina2xxReadBusVoltage(&battery2Ina, &rawVoltage)) {
+            voltage = rawVoltage;
+            voltageAvailable = true;
+        }
+        if (config->currentEnabled && config->currentSensor == BATTERY2_SENSOR_I2C
+            && ina2xxReadShuntVoltage(&battery2Ina, &rawShuntVoltage)) {
+            amperage = battery2ApplyCurrentCalibration(rawShuntVoltage);
+            currentAvailable = true;
+        }
+    }
+#endif
+
+#if defined(USE_DRONECAN)
+    if (canFresh && config->voltageEnabled && config->voltageSensor == BATTERY2_SENSOR_CAN) {
+        voltage = battery2CanVoltage;
+        voltageAvailable = true;
+        voltageIsCan = true;
+    }
+    if (canFresh && config->currentEnabled && config->currentSensor == BATTERY2_SENSOR_CAN) {
+        amperage = battery2CanAmperage;
+        currentAvailable = true;
+    }
+#endif
+
+    battery2Present = (config->voltageEnabled || config->currentEnabled)
+        && voltageAvailable && currentAvailable;
+    battery2Voltage = config->voltageEnabled && voltageAvailable
+        ? (voltageIsCan ? voltage : battery2ApplyVoltageCalibration(voltage)) : 0;
+    battery2Amperage = config->currentEnabled && currentAvailable
+        ? amperage : 0;
+
+    if (!battery2Present) {
         battery2HasPreviousSample = false;
         battery2State = BATTERY2_UNAVAILABLE;
+        battery2Cells = 0;
         return;
     }
-
-    battery2Present = true;
-    battery2Voltage = battery2ApplyVoltageCalibration(rawVoltage);
-    battery2Amperage = battery2ApplyCurrentCalibration(rawCurrent);
 
     // Do not count reverse current as consumed capacity.
     if (battery2HasPreviousSample) {
@@ -207,16 +277,17 @@ void battery2Update(timeUs_t timeDelta)
     }
     battery2HasPreviousSample = true;
     battery2MAhDrawn = battery2MAhAccumulator / BATTERY2_MAH_DIVISOR;
-    battery2UpdateVoltageState();
-#else
-    UNUSED(timeDelta);
-    battery2State = BATTERY2_UNAVAILABLE;
-#endif
+    if (config->voltageEnabled) {
+        battery2UpdateVoltageState();
+    } else {
+        battery2State = BATTERY2_UNAVAILABLE;
+        battery2Cells = 0;
+    }
 }
 
 bool isBattery2Supported(void)
 {
-#if defined(USE_BATTERY2_INA2XX)
+#if defined(USE_BATTERY2_INA2XX) || defined(USE_DRONECAN)
     return true;
 #else
     return false;
