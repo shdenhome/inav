@@ -153,6 +153,7 @@ typedef enum {
     DEVHW_IRLOCK,       // IR-Lock visual positioning hardware
     DEVHW_PCF8574,      // 8-bit I/O expander
     DEVHW_INA226,       // I2C current and voltage monitor
+    DEVHW_INA2XX,       // I2C current and voltage monitor (INA228/INA238)
 } devHardwareType_e;
 
 typedef enum {

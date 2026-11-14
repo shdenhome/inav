@@ -37,6 +37,7 @@
 - [barometerState_e](#enum-barometerstate_e)
 - [baroSensor_e](#enum-barosensor_e)
 - [batCapacityUnit_e](#enum-batcapacityunit_e)
+- [battery2State_e](#enum-battery2state_e)
 - [batteryState_e](#enum-batterystate_e)
 - [batVoltageSource_e](#enum-batvoltagesource_e)
 - [baudRate_e](#enum-baudrate_e)
@@ -174,6 +175,7 @@
 - [ibusSensorValue_e](#enum-ibussensorvalue_e)
 - [icm42605Variant_e](#enum-icm42605variant_e)
 - [imu_inertia_comp_method_e](#enum-imu_inertia_comp_method_e)
+- [ina2xxDeviceType_e](#enum-ina2xxdevicetype_e)
 - [inputSource_e](#enum-inputsource_e)
 - [itermRelax_e](#enum-itermrelax_e)
 - [ledBaseFunctionId_e](#enum-ledbasefunctionid_e)
@@ -227,6 +229,7 @@
 - [navDefaultAltitudeSensor_e](#enum-navdefaultaltitudesensor_e)
 - [navExtraArmingSafety_e](#enum-navextraarmingsafety_e)
 - [navFwLaunchStatus_e](#enum-navfwlaunchstatus_e)
+- [navFwWpTurnMode_e](#enum-navfwwpturnmode_e)
 - [navigationEstimateStatus_e](#enum-navigationestimatestatus_e)
 - [navigationFSMEvent_t](#enum-navigationfsmevent_t)
 - [navigationFSMState_t](#enum-navigationfsmstate_t)
@@ -362,11 +365,16 @@
 - [SPIDevice](#enum-spidevice)
 - [Srxl2BindRequest](#enum-srxl2bindrequest)
 - [Srxl2BindType](#enum-srxl2bindtype)
+- [srxl2CalPhase_e](#enum-srxl2calphase_e)
+- [srxl2CalResult_e](#enum-srxl2calresult_e)
 - [Srxl2ControlDataCommand](#enum-srxl2controldatacommand)
 - [Srxl2DeviceId](#enum-srxl2deviceid)
 - [Srxl2DeviceType](#enum-srxl2devicetype)
 - [Srxl2PacketType](#enum-srxl2packettype)
 - [Srxl2State](#enum-srxl2state)
+- [srxl2State_e](#enum-srxl2state_e)
+- [srxl2TelemetryField_e](#enum-srxl2telemetryfield_e)
+- [srxl2TelemetryRate_e](#enum-srxl2telemetryrate_e)
 - [stateFlags_t](#enum-stateflags_t)
 - [stickPositions_e](#enum-stickpositions_e)
 - [systemState_e](#enum-systemstate_e)
@@ -407,7 +415,6 @@
 - [widgetAHIOptions_t](#enum-widgetahioptions_t)
 - [widgetAHIStyle_e](#enum-widgetahistyle_e)
 - [widgetSidebarOptions_t](#enum-widgetsidebaroptions_t)
-- [wpFwTurnSmoothing_e](#enum-wpfwturnsmoothing_e)
 - [wpMissionPlannerStatus_e](#enum-wpmissionplannerstatus_e)
 - [zeroCalibrationState_e](#enum-zerocalibrationstate_e)
 
@@ -922,6 +929,18 @@
 | `BAT_CAPACITY_UNIT_MWH` | 1 |  |
 
 ---
+## <a id="enum-battery2state_e"></a>`battery2State_e`
+
+> Source: src/main/sensors/battery.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `BATTERY2_OK` | 0 |  |
+| `BATTERY2_WARNING` | 1 |  |
+| `BATTERY2_CRITICAL` | 2 |  |
+| `BATTERY2_UNAVAILABLE` | 3 |  |
+
+---
 ## <a id="enum-batterystate_e"></a>`batteryState_e`
 
 > Source: src/main/sensors/battery.h
@@ -1246,7 +1265,8 @@
 | `BOXAUTOSPEED` | 60 |  |
 | `BOXTERRAINAGLHOLD` | 61 |  |
 | `BOXINFLIGHTMENU` | 62 |  |
-| `CHECKBOX_ITEM_COUNT` | 63 |  |
+| `BOXTHRUSTREVERSE` | 63 |  |
+| `CHECKBOX_ITEM_COUNT` | 64 |  |
 
 ---
 ## <a id="enum-busindex_e"></a>`busIndex_e`
@@ -1578,6 +1598,7 @@
 | `DEVHW_IRLOCK` | 60 |  |
 | `DEVHW_PCF8574` | 61 |  |
 | `DEVHW_INA226` | 62 |  |
+| `DEVHW_INA2XX` | 63 |  |
 
 ---
 ## <a id="enum-deviceflags_e"></a>`deviceFlags_e`
@@ -2239,10 +2260,11 @@
 | `FLIGHT_LOG_FIELD_CONDITION_RC_DATA` | 56 |  |
 | `FLIGHT_LOG_FIELD_CONDITION_RC_COMMAND` | 57 |  |
 | `FLIGHT_LOG_FIELD_CONDITION_GYRO_RAW` | 58 |  |
-| `FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_ROLL` | 59 |  |
-| `FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_PITCH` | 60 |  |
-| `FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_YAW` | 61 |  |
-| `FLIGHT_LOG_FIELD_CONDITION_NEVER` | 62 |  |
+| `FLIGHT_LOG_FIELD_CONDITION_GYRO_SECONDARY` | (59) | USE_DUAL_GYRO |
+| `FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_ROLL` | 60 |  |
+| `FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_PITCH` | 61 |  |
+| `FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_YAW` | 62 |  |
+| `FLIGHT_LOG_FIELD_CONDITION_NEVER` | 63 |  |
 | `FLIGHT_LOG_FIELD_CONDITION_FIRST` | FLIGHT_LOG_FIELD_CONDITION_ALWAYS |  |
 | `FLIGHT_LOG_FIELD_CONDITION_LAST` | FLIGHT_LOG_FIELD_CONDITION_NEVER |  |
 
@@ -3220,6 +3242,17 @@
 | `COMPMETHOD_ADAPTIVE` | 2 |  |
 
 ---
+## <a id="enum-ina2xxdevicetype_e"></a>`ina2xxDeviceType_e`
+
+> Source: src/main/drivers/ina2xx.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `INA2XX_DEVICE_NONE` | 0 |  |
+| `INA2XX_DEVICE_228` | 1 |  |
+| `INA2XX_DEVICE_238` | 2 |  |
+
+---
 ## <a id="enum-inputsource_e"></a>`inputSource_e`
 
 > Source: src/main/flight/servos.h
@@ -3369,6 +3402,7 @@
 | `LED_OVERLAY_INDICATOR` | 4 |  |
 | `LED_OVERLAY_WARNING` | 5 |  |
 | `LED_OVERLAY_STROBE` | 6 |  |
+| `LED_OVERLAY_RAINBOW` | 7 |  |
 
 ---
 ## <a id="enum-ledspecialcolorids_e"></a>`ledSpecialColorIds_e`
@@ -3980,6 +4014,7 @@
 | `PWM_TYPE_DSHOT150` | 4 |  |
 | `PWM_TYPE_DSHOT300` | 5 |  |
 | `PWM_TYPE_DSHOT600` | 6 |  |
+| `PWM_TYPE_SRXL2` | 7 |  |
 
 ---
 ## <a id="enum-motorstatus_e"></a>`motorStatus_e`
@@ -4196,6 +4231,18 @@
 | `FW_LAUNCH_DETECTED` | 5 |  |
 | `FW_LAUNCH_ABORTED` | 10 |  |
 | `FW_LAUNCH_FLYING` | 11 |  |
+
+---
+## <a id="enum-navfwwpturnmode_e"></a>`navFwWpTurnMode_e`
+
+> Source: src/main/navigation/navigation.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `NAV_FW_WP_TURN_DIRECT` | 0 |  |
+| `NAV_FW_WP_TURN_COORD_FLY_BY` | 1 |  |
+| `NAV_FW_WP_TURN_COORD_FLY_OVER` | 2 |  |
+| `NAV_FW_WP_TURN_COORD_FLY_INTO` | 3 |  |
 
 ---
 ## <a id="enum-navigationestimatestatus_e"></a>`navigationEstimateStatus_e`
@@ -5015,7 +5062,10 @@
 | `OSD_GPS_EXTRA_STATS` | 169 |  |
 | `OSD_AUTO_SPEED` | 170 |  |
 | `OSD_TERRAIN_AGL` | 171 |  |
-| `OSD_ITEM_COUNT` | 172 |  |
+| `OSD_BATTERY2_VOLTAGE` | 172 |  |
+| `OSD_BATTERY2_CURRENT_DRAW` | 173 |  |
+| `OSD_BATTERY2_MAH_DRAWN` | 174 |  |
+| `OSD_ITEM_COUNT` | 175 |  |
 
 ---
 ## <a id="enum-osd_sidebar_arrow_e"></a>`osd_sidebar_arrow_e`
@@ -6178,6 +6228,7 @@
 | `FUNCTION_MSP_OSD` | (1 << 25) |  |
 | `FUNCTION_GIMBAL` | (1 << 26) |  |
 | `FUNCTION_GIMBAL_HEADTRACKER` | (1 << 27) |  |
+| `FUNCTION_ESC_SRXL2` | (1 << 29) |  |
 
 ---
 ## <a id="enum-serialportidentifier_e"></a>`serialPortIdentifier_e`
@@ -6490,6 +6541,33 @@
 | `DSMR_5_5ms` | 228 |  |
 
 ---
+## <a id="enum-srxl2calphase_e"></a>`srxl2CalPhase_e`
+
+> Source: src/main/io/motor_srxl2.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `SRXL2_CAL_OFF` | 0 |  |
+| `SRXL2_CAL_WAIT_BATTERY` | 1 |  |
+| `SRXL2_CAL_SETTLE` | 2 |  |
+| `SRXL2_CAL_LOW` | 3 |  |
+| `SRXL2_CAL_HIGH_MANUAL` | 4 |  |
+| `SRXL2_CAL_LOW_MANUAL` | 5 |  |
+
+---
+## <a id="enum-srxl2calresult_e"></a>`srxl2CalResult_e`
+
+> Source: src/main/io/motor_srxl2.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `SRXL2_CAL_ACCEPTED` | 0 |  |
+| `SRXL2_CAL_REJECT_ARMED` | 1 |  |
+| `SRXL2_CAL_REJECT_NO_PORT` | 2 |  |
+| `SRXL2_CAL_REJECT_BATTERY_PRESENT` | 3 |  |
+| `SRXL2_CAL_REJECT_NO_VOLTAGE_SENSOR` | 4 |  |
+
+---
 ## <a id="enum-srxl2controldatacommand"></a>`Srxl2ControlDataCommand`
 
 > Source: src/main/rx/srxl2_types.h
@@ -6554,6 +6632,43 @@
 | `SendHandshake` | 2 |  |
 | `ListenForHandshake` | 3 |  |
 | `Running` | 4 |  |
+
+---
+## <a id="enum-srxl2state_e"></a>`srxl2State_e`
+
+> Source: src/main/io/motor_srxl2.c
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `SRXL2_DISABLED` | 0 |  |
+| `SRXL2_LISTENING` | 1 |  |
+| `SRXL2_POLLING` | 2 |  |
+| `SRXL2_FINALISING` | 3 |  |
+| `SRXL2_RUNNING` | 4 |  |
+
+---
+## <a id="enum-srxl2telemetryfield_e"></a>`srxl2TelemetryField_e`
+
+> Source: src/main/io/motor_srxl2.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `SRXL2_TELEM_FIELD_RPM` | (1 << 0) |  |
+| `SRXL2_TELEM_FIELD_VOLTAGE` | (1 << 1) |  |
+| `SRXL2_TELEM_FIELD_CURRENT` | (1 << 2) |  |
+| `SRXL2_TELEM_FIELD_TEMP_FET` | (1 << 3) |  |
+| `SRXL2_TELEM_FIELD_TEMP_BEC` | (1 << 4) |  |
+
+---
+## <a id="enum-srxl2telemetryrate_e"></a>`srxl2TelemetryRate_e`
+
+> Source: src/main/io/motor_srxl2.h
+
+| Enumerator | Value | Condition |
+|---|---:|---|
+| `SRXL2_TELEM_1HZ` | 0 |  |
+| `SRXL2_TELEM_3HZ` | 1 |  |
+| `SRXL2_TELEM_2HZ` | 2 |  |
 
 ---
 ## <a id="enum-stateflags_t"></a>`stateFlags_t`
@@ -6717,16 +6832,17 @@
 
 | Enumerator | Value | Condition |
 |---|---:|---|
-| `timBlink` | 0 |  |
-| `timLarson` | 1 |  |
-| `timBattery` | 2 |  |
-| `timRssi` | 3 |  |
-| `timGps` | (4) | USE_GPS |
-| `timWarning` | 5 |  |
-| `timIndicator` | 6 |  |
-| `timAnimation` | (7) | USE_LED_ANIMATION |
-| `timRing` | 8 |  |
-| `timTimerCount` | 9 |  |
+| `timRainbow` | 0 |  |
+| `timBlink` | 1 |  |
+| `timLarson` | 2 |  |
+| `timBattery` | 3 |  |
+| `timRssi` | 4 |  |
+| `timGps` | (5) | USE_GPS |
+| `timWarning` | 6 |  |
+| `timIndicator` | 7 |  |
+| `timAnimation` | (8) | USE_LED_ANIMATION |
+| `timRing` | 9 |  |
+| `timTimerCount` | 10 |  |
 
 ---
 ## <a id="enum-tristate_e"></a>`tristate_e`
@@ -7120,17 +7236,6 @@
 | `DISPLAY_WIDGET_SIDEBAR_OPTION_REVERSE` | 1 << 1 |  |
 | `DISPLAY_WIDGET_SIDEBAR_OPTION_UNLABELED` | 1 << 2 |  |
 | `DISPLAY_WIDGET_SIDEBAR_OPTION_STATIC` | 1 << 3 |  |
-
----
-## <a id="enum-wpfwturnsmoothing_e"></a>`wpFwTurnSmoothing_e`
-
-> Source: src/main/navigation/navigation.h
-
-| Enumerator | Value | Condition |
-|---|---:|---|
-| `WP_TURN_SMOOTHING_OFF` | 0 |  |
-| `WP_TURN_SMOOTHING_ON` | 1 |  |
-| `WP_TURN_SMOOTHING_CUT` | 2 |  |
 
 ---
 ## <a id="enum-wpmissionplannerstatus_e"></a>`wpMissionPlannerStatus_e`

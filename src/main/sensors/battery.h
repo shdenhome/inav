@@ -59,6 +59,7 @@ typedef struct {
 } profile_comp_t;
 
 PG_DECLARE(batteryMetersConfig_t, batteryMetersConfig);
+PG_DECLARE(battery2Config_t, battery2Config);
 PG_DECLARE_ARRAY(batteryProfile_t, MAX_BATTERY_PROFILE_COUNT, batteryProfiles);
 
 extern const batteryProfile_t *currentBatteryProfile;
@@ -71,6 +72,13 @@ typedef enum {
     BATTERY_CRITICAL,
     BATTERY_NOT_PRESENT
 } batteryState_e;
+
+typedef enum {
+    BATTERY2_OK = 0,
+    BATTERY2_WARNING,
+    BATTERY2_CRITICAL,
+    BATTERY2_UNAVAILABLE
+} battery2State_e;
 
 
 uint16_t batteryAdcToVoltage(uint16_t src);
@@ -112,6 +120,15 @@ uint16_t getVBatSample(void);
 #endif
 
 void currentMeterUpdate(timeUs_t timeDelta);
+void battery2Init(void);
+void battery2Update(timeUs_t timeDelta);
+bool isBattery2Supported(void);
+bool isBattery2Present(void);
+battery2State_e getBattery2State(void);
+uint16_t getBattery2Voltage(void);
+int16_t getBattery2Amperage(void);
+uint32_t getBattery2MahDrawn(void);
+uint8_t getBattery2CellCount(void);
 
 uint8_t calculateBatteryPercentage(void);
 float calculateThrottleCompensationFactor(void);

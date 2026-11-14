@@ -1040,6 +1040,26 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         sbufWriteU8(dst, batteryMetersConfig()->capacity_unit);
         break;
 
+    case MSP2_INAV_BATTERY2_STATE:
+        sbufWriteU8(dst, isBattery2Present());
+        sbufWriteU8(dst, getBattery2State());
+        sbufWriteU8(dst, getBattery2CellCount());
+        sbufWriteU16(dst, getBattery2Voltage());
+        sbufWriteU16(dst, getBattery2Amperage());
+        sbufWriteU32(dst, getBattery2MahDrawn());
+        break;
+
+    case MSP2_INAV_BATTERY2_CONFIG:
+        sbufWriteU16(dst, battery2Config()->voltageScale);
+        sbufWriteU16(dst, battery2Config()->voltageOffset);
+        sbufWriteU16(dst, battery2Config()->currentScale);
+        sbufWriteU16(dst, battery2Config()->currentOffset);
+        sbufWriteU8(dst, battery2Config()->cells);
+        sbufWriteU16(dst, battery2Config()->cellDetect);
+        sbufWriteU16(dst, battery2Config()->cellWarning);
+        sbufWriteU16(dst, battery2Config()->cellCritical);
+        break;
+
 #ifdef USE_GPS
     case MSP_RAW_GPS:
         sbufWriteU8(dst, gpsSol.fixType);
@@ -2567,6 +2587,35 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
             }
         } else
             return MSP_RESULT_ERROR;
+        break;
+
+    case MSP2_INAV_SET_BATTERY2_CONFIG:
+        if (dataSize != 15) {
+            return MSP_RESULT_ERROR;
+        }
+
+        {
+            battery2Config_t config = {
+                .voltageScale = sbufReadU16(src),
+                .voltageOffset = (int16_t)sbufReadU16(src),
+                .currentScale = sbufReadU16(src),
+                .currentOffset = (int16_t)sbufReadU16(src),
+                .cells = sbufReadU8(src),
+                .cellDetect = sbufReadU16(src),
+                .cellWarning = sbufReadU16(src),
+                .cellCritical = sbufReadU16(src),
+            };
+
+            if (config.voltageScale == 0 || config.currentScale == 0 || config.cells > 12
+                || config.cellDetect < 250 || config.cellDetect > 500
+                || config.cellCritical < 250 || config.cellCritical > 450
+                || config.cellWarning < 250 || config.cellWarning > 450
+                || config.cellCritical >= config.cellWarning) {
+                return MSP_RESULT_ERROR;
+            }
+
+            *battery2ConfigMutable() = config;
+        }
         break;
 
     case MSP_SET_MOTOR:

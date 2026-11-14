@@ -777,8 +777,10 @@ void init(void)
 #endif // USE_VTX_CONTROL
 
     // Now that everything has powered up the voltage and cell count be determined.
-    if (feature(FEATURE_VBAT | FEATURE_CURRENT_METER))
+    if (feature(FEATURE_VBAT | FEATURE_CURRENT_METER)) {
         batteryInit();
+    }
+    battery2Init();
 
 #ifdef USE_RCDEVICE
     rcdeviceInit();

@@ -238,7 +238,7 @@ static bool osdDisplayHasCanvas;
 #define AH_MAX_PITCH_DEFAULT 20 // Specify default maximum AHI pitch value displayed (degrees)
 
 PG_REGISTER_WITH_RESET_TEMPLATE(osdConfig_t, osdConfig, PG_OSD_CONFIG, 0);
-PG_REGISTER_WITH_RESET_FN(osdLayoutsConfig_t, osdLayoutsConfig, PG_OSD_LAYOUTS_CONFIG, 4);
+PG_REGISTER_WITH_RESET_FN(osdLayoutsConfig_t, osdLayoutsConfig, PG_OSD_LAYOUTS_CONFIG, 5);
 
 /* OSD formatting helpers replacing common tfp_sprintf patterns
  * for reduced code size and CPU overhead. */
@@ -1875,6 +1875,45 @@ static bool osdDrawSingleElement(uint8_t item)
         }
         break;
     }
+
+    case OSD_BATTERY2_VOLTAGE:
+        if (isBattery2Present()) {
+            strcpy(buff, "B2:");
+            osdFormatCentiNumber(buff + 3, getBattery2Voltage(), 0, osdConfig()->main_voltage_decimals, 0, 4, false);
+            const size_t valueLength = strlen(buff);
+            buff[valueLength] = SYM_VOLT;
+            buff[valueLength + 1] = '\0';
+            if (getBattery2State() == BATTERY2_WARNING || getBattery2State() == BATTERY2_CRITICAL) {
+                TEXT_ATTRIBUTES_ADD_BLINK(elemAttr);
+            }
+        } else {
+            strcpy(buff, "B2:---");
+        }
+        break;
+
+    case OSD_BATTERY2_CURRENT_DRAW:
+        if (isBattery2Present()) {
+            strcpy(buff, "B2:");
+            osdFormatCentiNumber(buff + 3, getBattery2Amperage(), 0, 2, 0, 4, false);
+            const size_t valueLength = strlen(buff);
+            buff[valueLength] = SYM_AMP;
+            buff[valueLength + 1] = '\0';
+        } else {
+            strcpy(buff, "B2:---");
+        }
+        break;
+
+    case OSD_BATTERY2_MAH_DRAWN:
+        if (isBattery2Present()) {
+            strcpy(buff, "B2:");
+            osdFormatIntUnit(buff + 3, 5, getBattery2MahDrawn(), 0);
+            const size_t valueLength = strlen(buff);
+            buff[valueLength] = SYM_MAH;
+            buff[valueLength + 1] = '\0';
+        } else {
+            strcpy(buff, "B2:---");
+        }
+        break;
 
     case OSD_MAH_DRAWN: {
         uint8_t mah_digits = osdConfig()->mAh_precision; // Initialize to config value
@@ -4445,6 +4484,10 @@ void pgResetFn_osdLayoutsConfig(osdLayoutsConfig_t *osdLayoutsConfig)
     osdLayoutsConfig->item_pos[0][OSD_BATTERY_REMAINING_CAPACITY] = OSD_POS(1, 6);
     osdLayoutsConfig->item_pos[0][OSD_BATTERY_REMAINING_PERCENT] = OSD_POS(1, 7);
     osdLayoutsConfig->item_pos[0][OSD_POWER_SUPPLY_IMPEDANCE] = OSD_POS(1, 8);
+
+    osdLayoutsConfig->item_pos[0][OSD_BATTERY2_VOLTAGE] = OSD_POS(12, 9);
+    osdLayoutsConfig->item_pos[0][OSD_BATTERY2_CURRENT_DRAW] = OSD_POS(12, 10);
+    osdLayoutsConfig->item_pos[0][OSD_BATTERY2_MAH_DRAWN] = OSD_POS(12, 11);
 
     osdLayoutsConfig->item_pos[0][OSD_EFFICIENCY_MAH_PER_KM] = OSD_POS(1, 5);
     osdLayoutsConfig->item_pos[0][OSD_EFFICIENCY_WH_PER_KM] = OSD_POS(1, 5);

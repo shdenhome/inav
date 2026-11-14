@@ -95,6 +95,17 @@ typedef struct batteryMetersConfig_s {
 
 } batteryMetersConfig_t;
 
+typedef struct battery2Config_s {
+    uint16_t voltageScale;          // 1000 represents a scale of 1.000
+    int16_t voltageOffset;          // centivolts
+    uint16_t currentScale;          // 1000 represents a scale of 1.000
+    int16_t currentOffset;          // centiamps
+    uint8_t cells;                  // 0 enables automatic detection
+    uint16_t cellDetect;            // centivolts per cell
+    uint16_t cellWarning;           // centivolts per cell
+    uint16_t cellCritical;          // centivolts per cell
+} battery2Config_t;
+
 typedef struct batteryProfile_s {
 
 #ifdef USE_ADC

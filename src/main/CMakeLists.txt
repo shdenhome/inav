@@ -107,6 +107,8 @@ main_sources(COMMON_SRC
 
     drivers/ina226.c
     drivers/ina226.h
+    drivers/ina2xx.c
+    drivers/ina2xx.h
 
     drivers/barometer/barometer.h
     drivers/barometer/barometer_bmp085.c
@@ -498,6 +500,7 @@ main_sources(COMMON_SRC
     sensors/acceleration.h
     sensors/battery.c
     sensors/battery.h
+    sensors/battery2.c
     sensors/battery_config_structs.h
     sensors/battery_sensor_dronecan.c
     sensors/battery_sensor_dronecan.h

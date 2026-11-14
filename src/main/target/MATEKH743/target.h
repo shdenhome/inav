@@ -106,6 +106,10 @@
 #define I2C2_SCL                PB10
 #define I2C2_SDA                PB11
 
+// Matek I2C-INA-BM is connected to the external DA2/CL2 I2C2 connector.
+#define USE_BATTERY2_INA2XX
+#define BATTERY2_I2C_BUS        I2CDEV_2
+
 #define USE_BARO
 #define BARO_I2C_BUS            BUS_I2C2
 #define USE_BARO_BMP280

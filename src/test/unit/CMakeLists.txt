@@ -202,6 +202,9 @@ set_property(SOURCE terrain_unittest.cc PROPERTY definitions TERRAIN_UNIT_TEST U
 set_property(SOURCE ina226_unittest.cc PROPERTY depends "drivers/ina226.c")
 set_property(SOURCE ina226_unittest.cc PROPERTY definitions USE_INA226 USE_I2C USE_I2C_DEVICE_1 USE_I2C_DEVICE_2 USE_HEADTRACKER)
 
+set_property(SOURCE ina2xx_unittest.cc PROPERTY depends "drivers/ina2xx.c")
+set_property(SOURCE ina2xx_unittest.cc PROPERTY definitions USE_BATTERY2_INA2XX USE_I2C USE_I2C_DEVICE_1 USE_I2C_DEVICE_2 USE_HEADTRACKER)
+
 set_property(SOURCE mavlink_unittest.cc PROPERTY depends
     "fc/fc_mavlink.c" "mavlink/mavlink_command.c" "mavlink/mavlink_guided.c" "mavlink/mavlink_mission.c" "mavlink/mavlink_modes.c" "mavlink/mavlink_ports.c"
     "mavlink/mavlink_routing.c" "mavlink/mavlink_runtime.c" "mavlink/mavlink_streams.c" "telemetry/mavlink.c"

@@ -130,10 +130,10 @@ multi_function_e multiFunctionSelection(void)
 }
 #endif  // multifunction
 
-static bool osdCheckWarning(bool condition, uint8_t warningFlag)
+static bool osdCheckWarning(bool condition, uint16_t warningFlag)
 {
     static timeMs_t newWarningEndTime = 0;
-    static uint8_t newWarningFlags = 0;  // bitfield
+    static uint16_t newWarningFlags = 0;  // bitfield
     const timeMs_t currentTimeMs = millis();
 
     /* New warnings dislayed individually for 10s with blinking after which
@@ -260,10 +260,10 @@ textAttributes_t osdGetMultiFunctionMessage(char *buff)
 #endif  // MULTIFUNCTION - functions only, warnings always defined
 
     /* --- WARNINGS --- */
-    const char *messages[8];
+    const char *messages[9];
     uint8_t messageCount = 0;
     bool warningCondition = false;
-    uint8_t warningFlagID = 1;
+    uint16_t warningFlagID = 1;
 
 #ifdef USE_ADC
     // Low Battery Voltage
@@ -281,6 +281,13 @@ textAttributes_t osdGetMultiFunctionMessage(char *buff)
         if (osdCheckWarning(warningCondition, warningFlagID <<= 1)) {
             messages[messageCount++] = batteryState == BATTERY_CRITICAL ? "BATT EMPTY" : "BATT DYING";
         }
+    }
+
+    // Keep the second battery warning distinct from the primary battery state.
+    const battery2State_e battery2State = getBattery2State();
+    warningCondition = battery2State == BATTERY2_CRITICAL || battery2State == BATTERY2_WARNING;
+    if (osdCheckWarning(warningCondition, warningFlagID <<= 1)) {
+        messages[messageCount++] = battery2State == BATTERY2_CRITICAL ? "BATT2 EMPTY" : "BATT2 LOW  ";
     }
 #if defined(USE_GPS)
     // GPS Fix and Failure

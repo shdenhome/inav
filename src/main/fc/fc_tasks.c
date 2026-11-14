@@ -134,6 +134,8 @@ void taskUpdateBattery(timeUs_t currentTimeUs)
     static timeUs_t batMonitoringLastServiced = 0;
     timeDelta_t BatMonitoringTimeSinceLastServiced = cmpTimeUs(currentTimeUs, batMonitoringLastServiced);
 
+    battery2Update(BatMonitoringTimeSinceLastServiced);
+
     if (isAmperageConfigured()) {
         currentMeterUpdate(BatMonitoringTimeSinceLastServiced);
 #ifdef USE_POWER_LIMITS
@@ -398,7 +400,7 @@ void fcTasksInit(void)
 #ifdef USE_LIGHTS
     setTaskEnabled(TASK_LIGHTS, true);
 #endif
-    setTaskEnabled(TASK_BATTERY, feature(FEATURE_VBAT) || isAmperageConfigured());
+    setTaskEnabled(TASK_BATTERY, feature(FEATURE_VBAT) || isAmperageConfigured() || isBattery2Supported());
     setTaskEnabled(TASK_TEMPERATURE, true);
     setTaskEnabled(TASK_RX, true);
 #ifdef USE_GPS

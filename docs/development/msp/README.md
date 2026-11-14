@@ -440,6 +440,9 @@ When the MSP JSON specification changes, bump `msp_messages.json` version:
 [8338 - MSP2_ADSB_WARNING_VEHICLE_ICAO](#msp2_adsb_warning_vehicle_icao)  
 [8339 - MSP2_ADSB_VEHICLE](#msp2_adsb_vehicle)  
 [8340 - MSP2_ADSB_VEHICLE_COUNT](#msp2_adsb_vehicle_count)  
+[8352 - MSP2_INAV_BATTERY2_STATE](#msp2_inav_battery2_state)  
+[8353 - MSP2_INAV_BATTERY2_CONFIG](#msp2_inav_battery2_config)  
+[8354 - MSP2_INAV_SET_BATTERY2_CONFIG](#msp2_inav_set_battery2_config)  
 [8448 - MSP2_INAV_CUSTOM_OSD_ELEMENTS](#msp2_inav_custom_osd_elements)  
 [8449 - MSP2_INAV_CUSTOM_OSD_ELEMENT](#msp2_inav_custom_osd_element)  
 [8450 - MSP2_INAV_SET_CUSTOM_OSD_ELEMENTS](#msp2_inav_set_custom_osd_elements)  
@@ -4504,6 +4507,61 @@ When the MSP JSON specification changes, bump `msp_messages.json` version:
 | `count` | `uint8_t` | 1 | Number of vehicle slots to iterate (`MAX_ADSB_VEHICLES`). This is the slot capacity / iteration bound, not the number of currently active aircraft - some slots may be empty (`ttl == 0`). 0 if `USE_ADSB` is disabled. |
 
 **Notes:** Requires `USE_ADSB`. Returns the iteration bound for `MSP2_ADSB_VEHICLE`: request indices `0 .. count-1` and skip any slot whose `ttl == 0`.
+
+## <a id="msp2_inav_battery2_state"></a>`MSP2_INAV_BATTERY2_STATE (8352 / 0x20a0)`
+**Description:** Retrieves live measurements and warning state for the independent second battery channel.  
+
+**Request Payload:** **None**  
+  
+**Reply Payload:**
+|Field|C Type|Size (Bytes)|Units|Description|
+|---|---|---|---|---|
+| `present` | `uint8_t` | 1 | - | 1 when one supported sensor is detected and the latest I2C read succeeded; otherwise 0. |
+| `state` | `uint8_t` | 1 | - | Second battery state: 0 OK, 1 warning, 2 critical, 3 unavailable. |
+| `cellCount` | `uint8_t` | 1 | cells | Detected or configured cell count; 0 when unavailable. |
+| `voltage` | `uint16_t` | 2 | cV | Calibrated second battery voltage. |
+| `current` | `int16_t` | 2 | cA | Calibrated second battery current. |
+| `drawnMah` | `uint32_t` | 4 | mAh | Independently integrated charge consumed by the second battery. |
+
+**Notes:** When no sensor is detected, more than one supported address responds, or the latest I2C read fails, present is 0 and state is unavailable. This channel does not affect the primary battery state.
+
+## <a id="msp2_inav_battery2_config"></a>`MSP2_INAV_BATTERY2_CONFIG (8353 / 0x20a1)`
+**Description:** Retrieves independent calibration and voltage-warning settings for the second battery.  
+
+**Request Payload:** **None**  
+  
+**Reply Payload:**
+|Field|C Type|Size (Bytes)|Units|Description|
+|---|---|---|---|---|
+| `voltageScale` | `uint16_t` | 2 | per-mille | Voltage calibration multiplier; 1000 represents 1.000. |
+| `voltageOffset` | `int16_t` | 2 | cV | Voltage calibration offset. |
+| `currentScale` | `uint16_t` | 2 | per-mille | Current calibration multiplier; 1000 represents 1.000. |
+| `currentOffset` | `int16_t` | 2 | cA | Current calibration offset. |
+| `cells` | `uint8_t` | 1 | cells | Configured cell count; 0 enables automatic detection. |
+| `cellDetect` | `uint16_t` | 2 | cV/cell | Voltage used for automatic cell-count detection. |
+| `cellWarning` | `uint16_t` | 2 | cV/cell | Low-voltage warning threshold. |
+| `cellCritical` | `uint16_t` | 2 | cV/cell | Critical low-voltage threshold. |
+
+**Notes:** Calibration and warning values are persisted in the battery2Config parameter group. No I2C address is configurable in software.
+
+## <a id="msp2_inav_set_battery2_config"></a>`MSP2_INAV_SET_BATTERY2_CONFIG (8354 / 0x20a2)`
+**Description:** Updates the independent second battery calibration and voltage-warning settings.  
+  
+**Request Payload:**
+|Field|C Type|Size (Bytes)|Units|Description|
+|---|---|---|---|---|
+| `voltageScale` | `uint16_t` | 2 | per-mille | Voltage calibration multiplier; 1000 represents 1.000. |
+| `voltageOffset` | `int16_t` | 2 | cV | Voltage calibration offset. |
+| `currentScale` | `uint16_t` | 2 | per-mille | Current calibration multiplier; 1000 represents 1.000. |
+| `currentOffset` | `int16_t` | 2 | cA | Current calibration offset. |
+| `cells` | `uint8_t` | 1 | cells | Configured cell count; 0 enables automatic detection. |
+| `cellDetect` | `uint16_t` | 2 | cV/cell | Voltage used for automatic cell-count detection. |
+| `cellWarning` | `uint16_t` | 2 | cV/cell | Low-voltage warning threshold. |
+| `cellCritical` | `uint16_t` | 2 | cV/cell | Critical low-voltage threshold. |
+
+**Reply Payload:** **None**  
+
+**Notes:** The payload must contain exactly 15 bytes. Scales must be nonzero, cells must be 0–12, and per-cell thresholds must be within the firmware-validated ranges with critical lower than warning.
 
 ## <a id="msp2_inav_custom_osd_elements"></a>`MSP2_INAV_CUSTOM_OSD_ELEMENTS (8448 / 0x2100)`
 **Description:** Retrieves counts related to custom OSD elements defined by the programming framework.  

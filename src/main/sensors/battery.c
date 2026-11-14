@@ -854,6 +854,7 @@ void currentMeterUpdate(timeUs_t timeDelta)
     mAhdrawnRaw += (int64_t)((int32_t)amperage * timeDelta) / 1000;
 
     mAhDrawn = mAhdrawnRaw / (3600 * 100);
+
 }
 
 void powerMeterUpdate(timeUs_t timeDelta)

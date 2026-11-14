@@ -1,8 +1,8 @@
 {
     "version": {
         "major": 2,
-        "minor": 1,
-        "patch": 2
+        "minor": 2,
+        "patch": 0
     },
     "messages": {
         "MSP_API_VERSION": {
@@ -679,7 +679,9 @@
         "MSP_POSITION_ESTIMATION_CONFIG": {
             "code": 16,
             "mspv": 1,
-            "replaced_by": ["MSP2_COMMON_SETTING"],
+            "replaced_by": [
+                "MSP2_COMMON_SETTING"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -734,7 +736,9 @@
         "MSP_SET_POSITION_ESTIMATION_CONFIG": {
             "code": 17,
             "mspv": 1,
-            "replaced_by": ["MSP2_COMMON_SET_SETTING"],
+            "replaced_by": [
+                "MSP2_COMMON_SET_SETTING"
+            ],
             "request": {
                 "payload": [
                     {
@@ -2368,7 +2372,9 @@
         "MSP_BLACKBOX_CONFIG": {
             "code": 80,
             "mspv": 1,
-            "replaced_by": ["MSP2_BLACKBOX_CONFIG"],
+            "replaced_by": [
+                "MSP2_BLACKBOX_CONFIG"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -2408,7 +2414,9 @@
         "MSP_SET_BLACKBOX_CONFIG": {
             "code": 81,
             "mspv": 1,
-            "replaced_by": ["MSP2_SET_BLACKBOX_CONFIG"],
+            "replaced_by": [
+                "MSP2_SET_BLACKBOX_CONFIG"
+            ],
             "not_implemented": true,
             "request": null,
             "reply": null,
@@ -2436,7 +2444,11 @@
         "MSP_OSD_CONFIG": {
             "code": 84,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_OSD_LAYOUTS", "MSP2_INAV_OSD_ALARMS", "MSP2_INAV_OSD_PREFERENCES"],
+            "replaced_by": [
+                "MSP2_INAV_OSD_LAYOUTS",
+                "MSP2_INAV_OSD_ALARMS",
+                "MSP2_INAV_OSD_PREFERENCES"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -2515,7 +2527,11 @@
         "MSP_SET_OSD_CONFIG": {
             "code": 85,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_OSD_SET_LAYOUT_ITEM", "MSP2_INAV_OSD_SET_ALARMS", "MSP2_INAV_OSD_SET_PREFERENCES"],
+            "replaced_by": [
+                "MSP2_INAV_OSD_SET_LAYOUT_ITEM",
+                "MSP2_INAV_OSD_SET_ALARMS",
+                "MSP2_INAV_OSD_SET_PREFERENCES"
+            ],
             "request": null,
             "reply": null,
             "notes": "Requires `USE_OSD`. Distinguishes formats based on the first byte. Format 1 requires at least 10 bytes. Format 2 requires 3 bytes. Triggers an OSD redraw. See `MSP2_INAV_OSD_SET_*` for more advanced control.",
@@ -2587,25 +2603,25 @@
                     },
                     "reply": null
                 },
-            "dataSize == 3": {
-                "description": "Single item position update",
-                "request": {
-                    "payload": [
-                        {
-                            "name": "itemIndex",
-                            "ctype": "uint8_t",
-                            "desc": "Index of the OSD item to update (0 to `OSD_ITEM_COUNT - 1`).",
-                            "units": "Index"
-                        },
-                        {
-                            "name": "itemPosition",
-                            "ctype": "uint16_t",
-                            "desc": "Packed X/Y position (`(Y << 8) | X`) for the specified item.",
-                            "units": "packed"
-                        }
-                    ]
-                },
-                "reply": null
+                "dataSize == 3": {
+                    "description": "Single item position update",
+                    "request": {
+                        "payload": [
+                            {
+                                "name": "itemIndex",
+                                "ctype": "uint8_t",
+                                "desc": "Index of the OSD item to update (0 to `OSD_ITEM_COUNT - 1`).",
+                                "units": "Index"
+                            },
+                            {
+                                "name": "itemPosition",
+                                "ctype": "uint16_t",
+                                "desc": "Packed X/Y position (`(Y << 8) | X`) for the specified item.",
+                                "units": "packed"
+                            }
+                        ]
+                    },
+                    "reply": null
                 }
             }
         },
@@ -3146,7 +3162,9 @@
         "MSP_FILTER_CONFIG": {
             "code": 92,
             "mspv": 1,
-            "replaced_by": ["MSP2_COMMON_SETTING"],
+            "replaced_by": [
+                "MSP2_COMMON_SETTING"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -3230,7 +3248,9 @@
         "MSP_SET_FILTER_CONFIG": {
             "code": 93,
             "mspv": 1,
-            "replaced_by": ["MSP2_COMMON_SET_SETTING"],
+            "replaced_by": [
+                "MSP2_COMMON_SET_SETTING"
+            ],
             "request": {
                 "payload": [
                     {
@@ -3307,7 +3327,9 @@
         "MSP_PID_ADVANCED": {
             "code": 94,
             "mspv": 1,
-            "replaced_by": ["MSP_INAV_PID"],
+            "replaced_by": [
+                "MSP_INAV_PID"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -3385,7 +3407,9 @@
         "MSP_SET_PID_ADVANCED": {
             "code": 95,
             "mspv": 1,
-            "replaced_by": ["MSP_SET_INAV_PID"],
+            "replaced_by": [
+                "MSP_SET_INAV_PID"
+            ],
             "request": {
                 "payload": [
                     {
@@ -3615,7 +3639,9 @@
         "MSP_STATUS": {
             "code": 101,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_STATUS"],
+            "replaced_by": [
+                "MSP2_INAV_STATUS"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -3931,7 +3957,9 @@
         "MSP_ANALOG": {
             "code": 110,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_ANALOG"],
+            "replaced_by": [
+                "MSP2_INAV_ANALOG"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -4057,7 +4085,9 @@
         "MSP_MISC": {
             "code": 114,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_MISC"],
+            "replaced_by": [
+                "MSP2_INAV_MISC"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -4664,7 +4694,9 @@
         "MSP_STATUS_EX": {
             "code": 150,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_STATUS"],
+            "replaced_by": [
+                "MSP2_INAV_STATUS"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -5181,7 +5213,9 @@
         "MSP_SET_MISC": {
             "code": 207,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_SET_MISC"],
+            "replaced_by": [
+                "MSP2_INAV_SET_MISC"
+            ],
             "request": {
                 "payload": [
                     {
@@ -5382,10 +5416,10 @@
             "request": {
                 "payload": [
                     {
-                    "name": "heading",
-                    "ctype": "uint16_t",
-                    "desc": "Target heading (0-359)",
-                    "units": "degrees"
+                        "name": "heading",
+                        "ctype": "uint16_t",
+                        "desc": "Target heading (0-359)",
+                        "units": "degrees"
                     }
                 ]
             },
@@ -5635,7 +5669,9 @@
         "MSP_SERVO_MIX_RULES": {
             "code": 241,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_SERVO_MIXER"],
+            "replaced_by": [
+                "MSP2_INAV_SERVO_MIXER"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -5692,7 +5728,9 @@
         "MSP_SET_SERVO_MIX_RULE": {
             "code": 242,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_SET_SERVO_MIXER"],
+            "replaced_by": [
+                "MSP2_INAV_SET_SERVO_MIXER"
+            ],
             "request": {
                 "payload": [
                     {
@@ -5852,7 +5890,9 @@
         "MSP_DEBUG": {
             "code": 254,
             "mspv": 1,
-            "replaced_by": ["MSP2_INAV_DEBUG"],
+            "replaced_by": [
+                "MSP2_INAV_DEBUG"
+            ],
             "request": null,
             "reply": {
                 "payload": [
@@ -6486,7 +6526,7 @@
                 "repeating": "RADAR_MAX_POIS"
             },
             "notes": "Returns the stored GPS coordinates for all radar POIs (`radar_pois[i].gps`).",
-            "description": "Provides the GPS positions (latitude, longitude, altitude) for each radar point of interest." 
+            "description": "Provides the GPS positions (latitude, longitude, altitude) for each radar point of interest."
         },
         "MSP2_SENSOR_RANGEFINDER": {
             "code": 7937,
@@ -10014,7 +10054,7 @@
             "variable_len": true,
             "notes": "Requires `USE_DRONECAN`. When state=READY(2), service-specific result fields follow the 5-byte common header. GETNODEINFO: name_len(u8)+name(bytes)+sw_major(u8)+sw_minor(u8)+sw_optional_field_flags(u8)+sw_vcs_commit(u32)+hw_major(u8)+hw_minor(u8)+hw_unique_id(u8[16]). PARAM_GETSET: name_len(u8)+name(bytes)+type(u8)+value(variable)+min_type(u8)+min(variable)+max_type(u8)+max(variable); value/min/max encoding: INT=lo(u32)+hi(u32), FLOAT=raw(u32), BOOL=u8, STRING=len(u8)+data; EMPTY(0) min/max type means no bound is present. EXECUTE_OPCODE and RESTART_NODE: ok(u8) where 1=success. Reading result when state=READY transitions slot back to IDLE.",
             "description": "Polls the result of the most recent MSP2_INAV_DRONECAN_ASYNC_REQUEST. Poll at ~100ms intervals until state is READY(2) or ERROR(3)."
-        },                                        
+        },
         "MSP2_INAV_LED_STRIP_CONFIG_EX": {
             "code": 8264,
             "mspv": 2,
@@ -12023,6 +12063,171 @@
             "reply": null,
             "notes": "Requires USE_MOTOR_SRXL2 and at least one request byte. Accepted commands: 0 abort, 1 automatic start, 4 manual high, 5 manual low. Driver safety checks can reject start requests; read MSP2_INAV_ESC_SRXL2_STATUS for the reason. Other command values return an MSP error. Remove propellers before calibration.",
             "description": "Controls SRXL2 ESC throttle-range calibration."
+        },
+        "MSP2_INAV_BATTERY2_STATE": {
+            "code": 8352,
+            "mspv": 2,
+            "request": null,
+            "reply": {
+                "payload": [
+                    {
+                        "name": "present",
+                        "ctype": "uint8_t",
+                        "desc": "1 when one supported sensor is detected and the latest I2C read succeeded; otherwise 0.",
+                        "units": ""
+                    },
+                    {
+                        "name": "state",
+                        "ctype": "uint8_t",
+                        "desc": "Second battery state: 0 OK, 1 warning, 2 critical, 3 unavailable.",
+                        "units": ""
+                    },
+                    {
+                        "name": "cellCount",
+                        "ctype": "uint8_t",
+                        "desc": "Detected or configured cell count; 0 when unavailable.",
+                        "units": "cells"
+                    },
+                    {
+                        "name": "voltage",
+                        "ctype": "uint16_t",
+                        "desc": "Calibrated second battery voltage.",
+                        "units": "cV"
+                    },
+                    {
+                        "name": "current",
+                        "ctype": "int16_t",
+                        "desc": "Calibrated second battery current.",
+                        "units": "cA"
+                    },
+                    {
+                        "name": "drawnMah",
+                        "ctype": "uint32_t",
+                        "desc": "Independently integrated charge consumed by the second battery.",
+                        "units": "mAh"
+                    }
+                ]
+            },
+            "notes": "When no sensor is detected, more than one supported address responds, or the latest I2C read fails, present is 0 and state is unavailable. This channel does not affect the primary battery state.",
+            "description": "Retrieves live measurements and warning state for the independent second battery channel."
+        },
+        "MSP2_INAV_BATTERY2_CONFIG": {
+            "code": 8353,
+            "mspv": 2,
+            "request": null,
+            "reply": {
+                "payload": [
+                    {
+                        "name": "voltageScale",
+                        "ctype": "uint16_t",
+                        "desc": "Voltage calibration multiplier; 1000 represents 1.000.",
+                        "units": "per-mille"
+                    },
+                    {
+                        "name": "voltageOffset",
+                        "ctype": "int16_t",
+                        "desc": "Voltage calibration offset.",
+                        "units": "cV"
+                    },
+                    {
+                        "name": "currentScale",
+                        "ctype": "uint16_t",
+                        "desc": "Current calibration multiplier; 1000 represents 1.000.",
+                        "units": "per-mille"
+                    },
+                    {
+                        "name": "currentOffset",
+                        "ctype": "int16_t",
+                        "desc": "Current calibration offset.",
+                        "units": "cA"
+                    },
+                    {
+                        "name": "cells",
+                        "ctype": "uint8_t",
+                        "desc": "Configured cell count; 0 enables automatic detection.",
+                        "units": "cells"
+                    },
+                    {
+                        "name": "cellDetect",
+                        "ctype": "uint16_t",
+                        "desc": "Voltage used for automatic cell-count detection.",
+                        "units": "cV/cell"
+                    },
+                    {
+                        "name": "cellWarning",
+                        "ctype": "uint16_t",
+                        "desc": "Low-voltage warning threshold.",
+                        "units": "cV/cell"
+                    },
+                    {
+                        "name": "cellCritical",
+                        "ctype": "uint16_t",
+                        "desc": "Critical low-voltage threshold.",
+                        "units": "cV/cell"
+                    }
+                ]
+            },
+            "notes": "Calibration and warning values are persisted in the battery2Config parameter group. No I2C address is configurable in software.",
+            "description": "Retrieves independent calibration and voltage-warning settings for the second battery."
+        },
+        "MSP2_INAV_SET_BATTERY2_CONFIG": {
+            "code": 8354,
+            "mspv": 2,
+            "request": {
+                "payload": [
+                    {
+                        "name": "voltageScale",
+                        "ctype": "uint16_t",
+                        "desc": "Voltage calibration multiplier; 1000 represents 1.000.",
+                        "units": "per-mille"
+                    },
+                    {
+                        "name": "voltageOffset",
+                        "ctype": "int16_t",
+                        "desc": "Voltage calibration offset.",
+                        "units": "cV"
+                    },
+                    {
+                        "name": "currentScale",
+                        "ctype": "uint16_t",
+                        "desc": "Current calibration multiplier; 1000 represents 1.000.",
+                        "units": "per-mille"
+                    },
+                    {
+                        "name": "currentOffset",
+                        "ctype": "int16_t",
+                        "desc": "Current calibration offset.",
+                        "units": "cA"
+                    },
+                    {
+                        "name": "cells",
+                        "ctype": "uint8_t",
+                        "desc": "Configured cell count; 0 enables automatic detection.",
+                        "units": "cells"
+                    },
+                    {
+                        "name": "cellDetect",
+                        "ctype": "uint16_t",
+                        "desc": "Voltage used for automatic cell-count detection.",
+                        "units": "cV/cell"
+                    },
+                    {
+                        "name": "cellWarning",
+                        "ctype": "uint16_t",
+                        "desc": "Low-voltage warning threshold.",
+                        "units": "cV/cell"
+                    },
+                    {
+                        "name": "cellCritical",
+                        "ctype": "uint16_t",
+                        "desc": "Critical low-voltage threshold.",
+                        "units": "cV/cell"
+                    }
+                ]
+            },
+            "reply": null,
+            "notes": "The payload must contain exactly 15 bytes. Scales must be nonzero, cells must be 0–12, and per-cell thresholds must be within the firmware-validated ranges with critical lower than warning.",
+            "description": "Updates the independent second battery calibration and voltage-warning settings."
         }
     }
 }
