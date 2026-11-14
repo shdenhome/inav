@@ -19,6 +19,7 @@
 
 #define INA2XX_REG_VBUS             0x05
 #define INA2XX_REG_VSHUNT           0x04
+#define INA2XX_REG_ADC_CONFIG       0x01
 #define INA2XX_REG_CURRENT          0x07
 #define INA2XX_REG_CONFIG           0x00
 #define INA2XX_REG_SHUNT_CAL        0x02
@@ -27,6 +28,7 @@
 
 #define INA2XX_MANUFACTURER_ID      0x5449
 #define INA2XX_CONFIG_RESET         0x8000
+#define INA2XX_ADC_CONFIG_AVG_16X   0xFB6A
 #define INA2XX_SHUNT_CAL            1024
 #define INA228_DEVICE_ID_MASK        0xFFF0
 #define INA228_DEVICE_ID             0x2280
@@ -111,6 +113,9 @@ static bool ina2xxDetect(ina2xxDev_t *dev)
     // 204.8 A range (as used by Matek's INA2XX module configuration).
     return ina2xxWriteRegister16(dev, INA2XX_REG_CONFIG, INA2XX_CONFIG_RESET)
         && ina2xxWriteRegister16(dev, INA2XX_REG_CONFIG, 0)
+        // Keep continuous bus/shunt/temperature measurements and average 16
+        // conversions to reduce voltage and current jitter on the I2C bus.
+        && ina2xxWriteRegister16(dev, INA2XX_REG_ADC_CONFIG, INA2XX_ADC_CONFIG_AVG_16X)
         && ina2xxWriteRegister16(dev, INA2XX_REG_SHUNT_CAL, INA2XX_SHUNT_CAL);
 }
 

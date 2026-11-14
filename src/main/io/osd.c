@@ -1906,15 +1906,9 @@ static bool osdDrawSingleElement(uint8_t item)
     }
 
     case OSD_BATTERY2_CURRENT_DRAW:
-        if (isBattery2Present()) {
-            strcpy(buff, "B2:");
-            osdFormatCentiNumber(buff + 3, getBattery2Amperage(), 0, 2, 0, 4, false);
-            const size_t valueLength = strlen(buff);
-            buff[valueLength] = SYM_AMP;
-            buff[valueLength + 1] = '\0';
-        } else {
-            strcpy(buff, "B2:---");
-        }
+        osdFormatCentiNumber(buff, getBattery2Amperage(), 0, 2, 0, 3, false);
+        buff[3] = SYM_AMP;
+        buff[4] = '\0';
         break;
 
     case OSD_BATTERY2_MAH_DRAWN:
