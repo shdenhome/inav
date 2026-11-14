@@ -1891,6 +1891,20 @@ static bool osdDrawSingleElement(uint8_t item)
         }
         break;
 
+    case OSD_BATTERY2_CELL_VOLTAGE: {
+        const uint8_t cellCount = getBattery2CellCount();
+        if (isBattery2Present() && cellCount > 0) {
+            strcpy(buff, "B2C:");
+            osdFormatCentiNumber(buff + 4, getBattery2Voltage() / cellCount, 0, osdConfig()->main_voltage_decimals, 0, 4, false);
+            const size_t valueLength = strlen(buff);
+            buff[valueLength] = SYM_VOLT;
+            buff[valueLength + 1] = '\0';
+        } else {
+            strcpy(buff, "B2C:---");
+        }
+        break;
+    }
+
     case OSD_BATTERY2_CURRENT_DRAW:
         if (isBattery2Present()) {
             strcpy(buff, "B2:");
