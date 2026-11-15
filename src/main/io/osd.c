@@ -238,11 +238,7 @@ static bool osdDisplayHasCanvas;
 #define AH_MAX_PITCH_DEFAULT 20 // Specify default maximum AHI pitch value displayed (degrees)
 
 PG_REGISTER_WITH_RESET_TEMPLATE(osdConfig_t, osdConfig, PG_OSD_CONFIG, 0);
-extern void pgResetFn_osdLayoutsConfig(osdLayoutsConfig_t *osdLayoutsConfig);
-extern pgMigrateFunc pgMigrateFn_osdLayoutsConfig;
-PG_REGISTER_I(osdLayoutsConfig_t, osdLayoutsConfig, PG_OSD_LAYOUTS_CONFIG, 6,
-    .reset = {.fn = (pgResetFunc*)&pgResetFn_osdLayoutsConfig},
-    .migrate = (pgMigrateFunc*)&pgMigrateFn_osdLayoutsConfig);
+PG_REGISTER_WITH_RESET_FN_AND_MIGRATE(osdLayoutsConfig_t, osdLayoutsConfig, PG_OSD_LAYOUTS_CONFIG, 6);
 
 /* OSD formatting helpers replacing common tfp_sprintf patterns
  * for reduced code size and CPU overhead. */

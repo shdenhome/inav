@@ -156,6 +156,23 @@ extern const uint8_t __pg_resetdata_end[];
     PG_REGISTER_I(_type, _name, _pgn, _version, .reset = {.fn = (pgResetFunc*)&pgResetFn_ ## _name }) \
     /**/
 
+#define PG_REGISTER_WITH_RESET_FN_AND_MIGRATE(_type, _name, _pgn, _version) \
+    extern void pgResetFn_ ## _name(_type *);                           \
+    extern pgMigrateFunc pgMigrateFn_ ## _name;                         \
+    _type _name ## _System;                                             \
+    _type _name ## _Copy;                                               \
+    extern const pgRegistry_t _name ## _Registry;                       \
+    const pgRegistry_t _name ## _Registry PG_REGISTER_ATTRIBUTES = {   \
+        .pgn = _pgn | (_version << 12),                                 \
+        .size = sizeof(_type) | PGR_SIZE_SYSTEM_FLAG,                   \
+        .address = (uint8_t*)&_name ## _System,                        \
+        .copy = (uint8_t*)&_name ## _Copy,                              \
+        .ptr = 0,                                                       \
+        .reset = {.fn = (pgResetFunc*)&pgResetFn_ ## _name},            \
+        .migrate = (pgMigrateFunc*)&pgMigrateFn_ ## _name,              \
+    }                                                                   \
+    /**/
+
 #define PG_REGISTER_WITH_RESET_TEMPLATE(_type, _name, _pgn, _version)   \
     extern const _type pgResetTemplate_ ## _name;                       \
     PG_REGISTER_I(_type, _name, _pgn, _version, .reset = {.ptr = (void*)&pgResetTemplate_ ## _name}) \
