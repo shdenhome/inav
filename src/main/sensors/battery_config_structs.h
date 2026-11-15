@@ -63,6 +63,7 @@ typedef enum {
 typedef enum {
     BATTERY2_SENSOR_I2C,
     BATTERY2_SENSOR_CAN,
+    BATTERY2_SENSOR_ADC,
 } battery2Sensor_e;
 
 typedef struct batteryMetersConfig_s {

@@ -4257,17 +4257,18 @@ static void cliStatus(char *cmdline)
     cliPrintLinef("I2C Errors: %d, config size: %d, max available config: %d", i2cErrorCounter, getEEPROMConfigSize(), &__config_end - &__config_start);
 #endif
 #if defined(USE_ADC) && !defined(SITL_BUILD)
-    static char * adcFunctions[] = { "BATTERY", "RSSI", "CURRENT", "AIRSPEED" };
+    static char * adcFunctions[] = { "BATTERY", "RSSI", "CURRENT", "AIRSPEED", "BATTERY2", "CURRENT2" };
     cliPrintLine("ADC channel usage:");
     for (int i = 0; i < ADC_FUNCTION_COUNT; i++) {
         cliPrintf("  %8s :", adcFunctions[i]);
 
         cliPrint(" configured = ");
-        if (adcChannelConfig()->adcFunctionChannel[i] == ADC_CHN_NONE) {
-            cliPrint("none");
-        }
-        else {
+        if (i < ADC_CONFIG_FUNCTION_COUNT && adcChannelConfig()->adcFunctionChannel[i] != ADC_CHN_NONE) {
             cliPrintf("ADC %d", adcChannelConfig()->adcFunctionChannel[i]);
+        } else if (i < ADC_CONFIG_FUNCTION_COUNT) {
+            cliPrint("none");
+        } else {
+            cliPrint("board default");
         }
 
         cliPrint(", used = ");

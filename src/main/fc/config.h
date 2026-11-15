@@ -112,7 +112,7 @@ typedef struct beeperConfig_s {
 PG_DECLARE(beeperConfig_t, beeperConfig);
 
 typedef struct adcChannelConfig_s {
-    uint8_t adcFunctionChannel[ADC_FUNCTION_COUNT];
+    uint8_t adcFunctionChannel[ADC_CONFIG_FUNCTION_COUNT];
 } adcChannelConfig_t;
 
 PG_DECLARE(adcChannelConfig_t, adcChannelConfig);

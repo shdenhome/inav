@@ -24,7 +24,10 @@ typedef enum {
     ADC_RSSI = 1,
     ADC_CURRENT = 2,
     ADC_AIRSPEED = 3,
-    ADC_FUNCTION_COUNT
+    ADC_BATTERY2 = 4,
+    ADC_CURRENT2 = 5,
+    ADC_FUNCTION_COUNT,
+    ADC_CONFIG_FUNCTION_COUNT = 4
 } adcFunction_e;
 
 typedef enum {

@@ -542,6 +542,15 @@ void init(void)
     }
 #endif
 
+#if defined(USE_BATTERY2_ADC)
+    if (battery2Config()->voltageEnabled && battery2Config()->voltageSensor == BATTERY2_SENSOR_ADC) {
+        adc_params.adcFunctionChannel[ADC_BATTERY2] = BATTERY2_VOLTAGE_ADC_CHANNEL;
+    }
+    if (battery2Config()->currentEnabled && battery2Config()->currentSensor == BATTERY2_SENSOR_ADC) {
+        adc_params.adcFunctionChannel[ADC_CURRENT2] = BATTERY2_CURRENT_ADC_CHANNEL;
+    }
+#endif
+
     adcInit(&adc_params);
 #endif
 

@@ -1804,8 +1804,9 @@ static void osdDisplayBattery2Voltage(uint8_t elemPosX, uint8_t elemPosY, uint16
     total_digits = MIN(total_digits, 5);
     osdFormatCentiNumber(voltageText, voltage, 0, decimals, 0, total_digits, false);
     voltageText[total_digits] = SYM_VOLT;
-    voltageText[total_digits + 1] = '2';
-    voltageText[total_digits + 2] = '\0';
+    voltageText[total_digits + 1] = '.';
+    voltageText[total_digits + 2] = '2';
+    voltageText[total_digits + 3] = '\0';
     if (battery2Warning) {
         TEXT_ATTRIBUTES_ADD_BLINK(elemAttr);
     }
@@ -1927,8 +1928,9 @@ static bool osdDrawSingleElement(uint8_t item)
     case OSD_BATTERY2_CURRENT_DRAW:
         osdFormatCentiNumber(buff, getBattery2Amperage(), 0, 2, 0, 3, false);
         buff[3] = SYM_AMP;
-        buff[4] = '2';
-        buff[5] = '\0';
+        buff[4] = '.';
+        buff[5] = '2';
+        buff[6] = '\0';
         break;
 
     case OSD_BATTERY2_MAH_DRAWN:
@@ -1938,8 +1940,9 @@ static bool osdDrawSingleElement(uint8_t item)
             if (isDJICompatibleVideoSystem(osdConfig())) {
                 osdFormatIntUnit(buff, 5, (int)getBattery2MahDrawn(), 0);
                 buff[5] = SYM_MAH;
-                buff[6] = '2';
-                buff[7] = '\0';
+                buff[6] = '.';
+                buff[7] = '2';
+                buff[8] = '\0';
             } else
 #endif
             {
@@ -1948,8 +1951,9 @@ static bool osdDrawSingleElement(uint8_t item)
                 } else {
                     buff[mahDigits] = SYM_MAH;
                 }
-                buff[mahDigits + 1] = '2';
-                buff[mahDigits + 2] = '\0';
+                buff[mahDigits + 1] = '.';
+                buff[mahDigits + 2] = '2';
+                buff[mahDigits + 3] = '\0';
             }
         } else {
             strcpy(buff, "B2:---");
@@ -1961,8 +1965,9 @@ static bool osdDrawSingleElement(uint8_t item)
             const int32_t battery2Power = (int32_t)getBattery2Voltage() * getBattery2Amperage() / 100;
             const bool kiloWatt = osdFormatCentiNumber(buff, battery2Power, 1000, 2, 2, 3, false);
             buff[3] = kiloWatt ? SYM_KILOWATT : SYM_WATT;
-            buff[4] = '2';
-            buff[5] = '\0';
+            buff[4] = '.';
+            buff[5] = '2';
+            buff[6] = '\0';
         } else {
             strcpy(buff, "B2:---");
         }

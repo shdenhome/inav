@@ -18,6 +18,9 @@
 #include "config/parameter_group.h"
 #include "config/parameter_group_ids.h"
 #include "drivers/ina2xx.h"
+#if defined(USE_BATTERY2_ADC)
+#include "drivers/adc.h"
+#endif
 #include "sensors/battery.h"
 #if defined(USE_DRONECAN)
 #include "sensors/battery_sensor_dronecan.h"
@@ -28,6 +31,17 @@
 #define BATTERY2_VOLTAGE_HYSTERESIS    10
 #define BATTERY2_VOLTAGE_LPF_FREQ      1
 #define BATTERY2_CAN_TIMEOUT_MS        1500
+#define BATTERY2_ADC_VREF_MV            3300u
+#ifndef BATTERY2_VOLTAGE_ADC_SCALE
+#define BATTERY2_VOLTAGE_ADC_SCALE 1000
+#endif
+#ifndef BATTERY2_CURRENT_ADC_SCALE
+#ifdef CURRENT_METER_SCALE
+#define BATTERY2_CURRENT_ADC_SCALE CURRENT_METER_SCALE
+#else
+#define BATTERY2_CURRENT_ADC_SCALE 250
+#endif
+#endif
 
 PG_REGISTER_WITH_RESET_TEMPLATE(battery2Config_t, battery2Config, PG_BATTERY2_CONFIG, 1);
 
@@ -111,13 +125,28 @@ void battery2Init(void)
     battery2MAhAccumulator = 0;
     battery2PollElapsed = 0;
 
-    // Older battery2 configs used a 1000-based multiplier for current.
-    // Convert the old unity default to the Matek 200 uOhm shunt scale
-    // (0.2 mV/A, represented in 0.1 mV/A units).
-    if (battery2Config()->currentScale >= 100) {
+#if defined(USE_BATTERY2_ADC)
+    if (battery2Config()->voltageSensor == BATTERY2_SENSOR_ADC && battery2Config()->voltageScale == 1000) {
+        battery2ConfigMutable()->voltageScale = BATTERY2_VOLTAGE_ADC_SCALE;
+    } else if (battery2Config()->voltageSensor == BATTERY2_SENSOR_I2C
+        && battery2Config()->voltageScale == BATTERY2_VOLTAGE_ADC_SCALE) {
+        battery2ConfigMutable()->voltageScale = 1000;
+    }
+#endif
+
+    // Convert legacy I2C scale values to the Matek 200 uOhm shunt scale.
+    if (battery2Config()->currentSensor == BATTERY2_SENSOR_I2C && battery2Config()->currentScale >= 100) {
         battery2ConfigMutable()->currentScale = 2;
         battery2ConfigMutable()->currentOffset = 0;
     }
+#if defined(USE_BATTERY2_ADC)
+    // The old I2C default (2) is not a useful ADC sensor scale. Seed it from
+    // the board's primary ADC current-meter scale when ADC is selected.
+    if (battery2Config()->currentSensor == BATTERY2_SENSOR_ADC && battery2Config()->currentScale == 2) {
+        battery2ConfigMutable()->currentScale = BATTERY2_CURRENT_ADC_SCALE;
+        battery2ConfigMutable()->currentOffset = CURRENT_METER_OFFSET;
+    }
+#endif
 
 #if defined(USE_BATTERY2_INA2XX)
     if ((battery2Config()->voltageEnabled && battery2Config()->voltageSensor == BATTERY2_SENSOR_I2C)
@@ -148,6 +177,11 @@ static uint16_t battery2ApplyVoltageCalibration(uint16_t rawVoltage)
     const int32_t calibrated = ((int32_t)rawVoltage * battery2Config()->voltageScale / 1000)
         + battery2Config()->voltageOffset;
     return (uint16_t)constrain(calibrated, 0, UINT16_MAX);
+}
+
+static uint16_t battery2ApplyVoltageOffset(uint16_t rawVoltage)
+{
+    return (uint16_t)constrain((int32_t)rawVoltage + battery2Config()->voltageOffset, 0, UINT16_MAX);
 }
 
 static int16_t battery2ApplyCurrentCalibration(int32_t shuntMicroVolts)
@@ -244,6 +278,7 @@ void battery2Update(timeUs_t timeDelta)
     uint16_t voltage = 0;
     int16_t amperage = 0;
     bool voltageIsCan = false;
+    bool voltageIsAdc = false;
     const bool canFresh = battery2CanSampleReceived
         && (millis() - battery2CanLastUpdateMs) <= BATTERY2_CAN_TIMEOUT_MS;
 
@@ -264,6 +299,24 @@ void battery2Update(timeUs_t timeDelta)
     }
 #endif
 
+#if defined(USE_BATTERY2_ADC)
+    if (config->voltageEnabled && config->voltageSensor == BATTERY2_SENSOR_ADC
+        && adcIsFunctionAssigned(ADC_BATTERY2)) {
+        const uint16_t raw = adcGetChannel(ADC_BATTERY2);
+        const uint64_t centivolts = ((uint64_t)raw * config->voltageScale * BATTERY2_ADC_VREF_MV) / (0xFFFu * 1000u);
+        voltage = centivolts > UINT16_MAX ? UINT16_MAX : (uint16_t)centivolts;
+        voltageAvailable = true;
+        voltageIsAdc = true;
+    }
+    if (config->currentEnabled && config->currentSensor == BATTERY2_SENSOR_ADC
+        && adcIsFunctionAssigned(ADC_CURRENT2)) {
+        const uint16_t raw = adcGetChannel(ADC_CURRENT2);
+        const int32_t rawMicroVolts = (int32_t)(((uint64_t)raw * BATTERY2_ADC_VREF_MV * 1000u) / 0xFFFu);
+        amperage = battery2ApplyCurrentCalibration(rawMicroVolts);
+        currentAvailable = true;
+    }
+#endif
+
 #if defined(USE_DRONECAN)
     if (canFresh && config->voltageEnabled && config->voltageSensor == BATTERY2_SENSOR_CAN) {
         voltage = battery2CanVoltage;
@@ -280,7 +333,9 @@ void battery2Update(timeUs_t timeDelta)
         && voltageAvailable && currentAvailable;
     if (config->voltageEnabled) {
         if (voltageAvailable) {
-            const uint16_t voltageSample = voltageIsCan ? voltage : battery2ApplyVoltageCalibration(voltage);
+            const uint16_t voltageSample = voltageIsCan ? voltage
+                : voltageIsAdc ? battery2ApplyVoltageOffset(voltage)
+                : battery2ApplyVoltageCalibration(voltage);
             if (!battery2VoltageFilterInitialized) {
                 pt1FilterReset(&battery2VoltageFilter, voltageSample);
                 battery2VoltageFilterInitialized = true;
@@ -327,7 +382,7 @@ void battery2Update(timeUs_t timeDelta)
 
 bool isBattery2Supported(void)
 {
-#if defined(USE_BATTERY2_INA2XX) || defined(USE_DRONECAN)
+#if defined(USE_BATTERY2_INA2XX) || defined(USE_DRONECAN) || defined(USE_BATTERY2_ADC)
     return true;
 #else
     return false;

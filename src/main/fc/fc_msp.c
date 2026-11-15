@@ -2626,7 +2626,10 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
 
             if (config.voltageScale == 0 || config.currentScale == 0 || config.cells > 12
                 || config.voltageEnabled > 1 || config.currentEnabled > 1
-                || config.voltageSensor > BATTERY2_SENSOR_CAN || config.currentSensor > BATTERY2_SENSOR_CAN
+                || config.voltageSensor > BATTERY2_SENSOR_ADC || config.currentSensor > BATTERY2_SENSOR_ADC
+#if !defined(USE_BATTERY2_ADC)
+                || config.voltageSensor == BATTERY2_SENSOR_ADC || config.currentSensor == BATTERY2_SENSOR_ADC
+#endif
                 || config.cellDetect < 250 || config.cellDetect > 500
                 || config.cellCritical < 250 || config.cellCritical > 450
                 || config.cellWarning < 250 || config.cellWarning > 450
