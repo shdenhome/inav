@@ -382,6 +382,7 @@ typedef enum {
     OSD_GPS_EXTRA_STATS,
     OSD_AUTO_SPEED,  // 170
     OSD_TERRAIN_AGL, // 171,
+    OSD_MZTC_STATUS_RESERVED, // 172, reserved to keep Configurator 10.x OSD item IDs aligned
     OSD_BATTERY2_VOLTAGE,
     OSD_BATTERY2_CURRENT_DRAW,
     OSD_BATTERY2_MAH_DRAWN,
