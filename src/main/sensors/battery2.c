@@ -11,7 +11,9 @@
 
 #include "platform.h"
 
+#include "common/filter.h"
 #include "common/maths.h"
+#include "common/time.h"
 #include "common/utils.h"
 #include "config/parameter_group.h"
 #include "config/parameter_group_ids.h"
@@ -24,6 +26,7 @@
 #define BATTERY2_READ_INTERVAL_US      100000
 #define BATTERY2_MAH_DIVISOR           360000000LL
 #define BATTERY2_VOLTAGE_HYSTERESIS    10
+#define BATTERY2_VOLTAGE_LPF_FREQ      1
 #define BATTERY2_CAN_TIMEOUT_MS        1500
 
 PG_REGISTER_WITH_RESET_TEMPLATE(battery2Config_t, battery2Config, PG_BATTERY2_CONFIG, 1);
@@ -45,6 +48,9 @@ PG_RESET_TEMPLATE(battery2Config_t, battery2Config,
 );
 
 static uint16_t battery2Voltage;
+static pt1Filter_t battery2VoltageFilter;
+static bool battery2VoltageFilterInitialized;
+static uint32_t battery2VoltageFilterElapsed;
 static int16_t battery2Amperage;
 static uint32_t battery2MAhDrawn;
 static uint8_t battery2Cells;
@@ -91,6 +97,10 @@ static bool battery2DetectSensor(void)
 void battery2Init(void)
 {
     battery2Voltage = 0;
+    pt1FilterSetCutoff(&battery2VoltageFilter, BATTERY2_VOLTAGE_LPF_FREQ);
+    pt1FilterReset(&battery2VoltageFilter, 0);
+    battery2VoltageFilterInitialized = false;
+    battery2VoltageFilterElapsed = 0;
     battery2Amperage = 0;
     battery2MAhDrawn = 0;
     battery2Cells = 0;
@@ -145,6 +155,15 @@ static int16_t battery2ApplyCurrentCalibration(int32_t shuntMicroVolts)
     const int32_t calibrated = (shuntMicroVolts - (int32_t)battery2Config()->currentOffset * 1000)
         / MAX(1, battery2Config()->currentScale);
     return (int16_t)constrain(calibrated, INT16_MIN, INT16_MAX);
+}
+
+static void battery2AccumulateVoltageFilterElapsed(timeUs_t elapsed)
+{
+    if (elapsed > UINT32_MAX - battery2VoltageFilterElapsed) {
+        battery2VoltageFilterElapsed = UINT32_MAX;
+    } else {
+        battery2VoltageFilterElapsed += elapsed;
+    }
 }
 
 static uint8_t battery2DetectCells(uint16_t voltage)
@@ -259,8 +278,29 @@ void battery2Update(timeUs_t timeDelta)
 
     battery2Present = (config->voltageEnabled || config->currentEnabled)
         && voltageAvailable && currentAvailable;
-    battery2Voltage = config->voltageEnabled && voltageAvailable
-        ? (voltageIsCan ? voltage : battery2ApplyVoltageCalibration(voltage)) : 0;
+    if (config->voltageEnabled) {
+        if (voltageAvailable) {
+            const uint16_t voltageSample = voltageIsCan ? voltage : battery2ApplyVoltageCalibration(voltage);
+            if (!battery2VoltageFilterInitialized) {
+                pt1FilterReset(&battery2VoltageFilter, voltageSample);
+                battery2VoltageFilterInitialized = true;
+                battery2Voltage = voltageSample;
+            } else {
+                battery2AccumulateVoltageFilterElapsed(sampleTime);
+                battery2Voltage = pt1FilterApply3(&battery2VoltageFilter, voltageSample, US2S(battery2VoltageFilterElapsed));
+            }
+            battery2VoltageFilterElapsed = 0;
+        } else if (!battery2VoltageFilterInitialized) {
+            battery2Voltage = 0;
+        } else {
+            battery2AccumulateVoltageFilterElapsed(sampleTime);
+        }
+        // Preserve filter state and elapsed time during read failures; battery2Present gates the public value.
+    } else {
+        battery2Voltage = 0;
+        battery2VoltageFilterInitialized = false;
+        battery2VoltageFilterElapsed = 0;
+    }
     battery2Amperage = config->currentEnabled && currentAvailable
         ? amperage : 0;
 
