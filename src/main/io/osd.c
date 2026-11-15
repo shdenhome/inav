@@ -1783,6 +1783,35 @@ static void osdDisplayBattVoltDJI(uint8_t elemPosX, uint8_t elemPosY, uint16_t v
     osdDisplayBatteryVoltage(elemPosX, elemPosY, voltage, total_digits, decimals);
 }
 
+static void osdDisplayBattery2Voltage(uint8_t elemPosX, uint8_t elemPosY, uint16_t voltage, uint8_t total_digits, uint8_t decimals)
+{
+#ifndef DISABLE_MSP_DJI_COMPAT
+    if (isDJICompatibleVideoSystem(osdConfig())) total_digits++;
+#endif
+
+    const bool battery2Warning = getBattery2State() == BATTERY2_WARNING || getBattery2State() == BATTERY2_CRITICAL;
+    char batterySymbol[2];
+    textAttributes_t elemAttr = TEXT_ATTRIBUTES_NONE;
+    osdFormatBatteryChargeSymbol(batterySymbol);
+    batterySymbol[1] = '\0';
+    if (battery2Warning) {
+        TEXT_ATTRIBUTES_ADD_BLINK(elemAttr);
+    }
+    displayWriteWithAttr(osdDisplayPort, elemPosX, elemPosY, batterySymbol, elemAttr);
+
+    char voltageText[9];
+    elemAttr = TEXT_ATTRIBUTES_NONE;
+    total_digits = MIN(total_digits, 5);
+    osdFormatCentiNumber(voltageText, voltage, 0, decimals, 0, total_digits, false);
+    voltageText[total_digits] = SYM_VOLT;
+    voltageText[total_digits + 1] = '2';
+    voltageText[total_digits + 2] = '\0';
+    if (battery2Warning) {
+        TEXT_ATTRIBUTES_ADD_BLINK(elemAttr);
+    }
+    displayWriteWithAttr(osdDisplayPort, elemPosX + 1, elemPosY, voltageText, elemAttr);
+}
+
 static void osdFormatAngleDeg(char *buff, char sym, bool valid, int16_t degrees)
 {
     buff[0] = sym;
@@ -1878,57 +1907,49 @@ static bool osdDrawSingleElement(uint8_t item)
 
     case OSD_BATTERY2_VOLTAGE:
         if (isBattery2Present()) {
-            strcpy(buff, "B2:");
-            osdFormatCentiNumber(buff + 3, getBattery2Voltage(), 0, osdConfig()->main_voltage_decimals, 0, 4, false);
-            const size_t valueLength = strlen(buff);
-            buff[valueLength] = SYM_VOLT;
-            buff[valueLength + 1] = '\0';
-            if (getBattery2State() == BATTERY2_WARNING || getBattery2State() == BATTERY2_CRITICAL) {
-                TEXT_ATTRIBUTES_ADD_BLINK(elemAttr);
-            }
-        } else {
-            strcpy(buff, "B2:---");
+            osdDisplayBattery2Voltage(elemPosX, elemPosY, getBattery2Voltage(),
+                2 + osdConfig()->main_voltage_decimals, osdConfig()->main_voltage_decimals);
+            return true;
         }
+        strcpy(buff, "B2:---");
         break;
 
     case OSD_BATTERY2_CELL_VOLTAGE: {
         const uint8_t cellCount = getBattery2CellCount();
         if (isBattery2Present() && cellCount > 0) {
-            strcpy(buff, "B2C:");
-            osdFormatCentiNumber(buff + 4, getBattery2Voltage() / cellCount, 0, osdConfig()->main_voltage_decimals, 0, 4, false);
-            const size_t valueLength = strlen(buff);
-            buff[valueLength] = SYM_VOLT;
-            buff[valueLength + 1] = '\0';
-        } else {
-            strcpy(buff, "B2C:---");
+            osdDisplayBattery2Voltage(elemPosX, elemPosY, getBattery2Voltage() / cellCount, 3, 2);
+            return true;
         }
+        strcpy(buff, "B2C:---");
         break;
     }
 
     case OSD_BATTERY2_CURRENT_DRAW:
         osdFormatCentiNumber(buff, getBattery2Amperage(), 0, 2, 0, 3, false);
         buff[3] = SYM_AMP;
-        buff[4] = '\0';
+        buff[4] = '2';
+        buff[5] = '\0';
         break;
 
     case OSD_BATTERY2_MAH_DRAWN:
         if (isBattery2Present()) {
-            strcpy(buff, "B2:");
             const uint8_t mahDigits = osdConfig()->mAh_precision;
 #ifndef DISABLE_MSP_DJI_COMPAT
             if (isDJICompatibleVideoSystem(osdConfig())) {
-                osdFormatIntUnit(buff + 3, 5, (int)getBattery2MahDrawn(), 0);
-                buff[8] = SYM_MAH;
-                buff[9] = '\0';
+                osdFormatIntUnit(buff, 5, (int)getBattery2MahDrawn(), 0);
+                buff[5] = SYM_MAH;
+                buff[6] = '2';
+                buff[7] = '\0';
             } else
 #endif
             {
-                if (osdFormatCentiNumber(buff + 3, (int32_t)getBattery2MahDrawn() * 100, 1000, 0, 2, mahDigits, false)) {
-                    buff[mahDigits + 3] = SYM_AH;
+                if (osdFormatCentiNumber(buff, (int32_t)getBattery2MahDrawn() * 100, 1000, 0, 2, mahDigits, false)) {
+                    buff[mahDigits] = SYM_AH;
                 } else {
-                    buff[mahDigits + 3] = SYM_MAH;
+                    buff[mahDigits] = SYM_MAH;
                 }
-                buff[mahDigits + 4] = '\0';
+                buff[mahDigits + 1] = '2';
+                buff[mahDigits + 2] = '\0';
             }
         } else {
             strcpy(buff, "B2:---");
@@ -1937,11 +1958,11 @@ static bool osdDrawSingleElement(uint8_t item)
 
     case OSD_BATTERY2_POWER:
         if (isBattery2PowerAvailable()) {
-            strcpy(buff, "B2:");
             const int32_t battery2Power = (int32_t)getBattery2Voltage() * getBattery2Amperage() / 100;
-            const bool kiloWatt = osdFormatCentiNumber(buff + 3, battery2Power, 1000, 2, 2, 3, false);
-            buff[6] = kiloWatt ? SYM_KILOWATT : SYM_WATT;
-            buff[7] = '\0';
+            const bool kiloWatt = osdFormatCentiNumber(buff, battery2Power, 1000, 2, 2, 3, false);
+            buff[3] = kiloWatt ? SYM_KILOWATT : SYM_WATT;
+            buff[4] = '2';
+            buff[5] = '\0';
         } else {
             strcpy(buff, "B2:---");
         }
