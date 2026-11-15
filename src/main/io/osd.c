@@ -1117,14 +1117,34 @@ static void osdFormatMessage(char *buff, size_t size, const char *message, bool 
     buff[size] = '\0';
 }
 
-/**
- * Draws the battery symbol filled in accordingly to the
- * battery voltage to buff[0].
- **/
-static void osdFormatBatteryChargeSymbol(char *buff)
+static uint8_t calculateBattery2Percentage(void)
 {
-    uint8_t p = calculateBatteryPercentage();
-    p = (100 - p) / 16.6;
+    const battery2Config_t *config = battery2Config();
+    const uint8_t cells = getBattery2CellCount();
+    if (cells == 0 || config->cellDetect <= config->cellCritical) {
+        return 0;
+    }
+
+    // Use the configured cell-detection voltage as the full-charge end of the icon range.
+    const uint32_t fullVoltage = (uint32_t)cells * config->cellDetect;
+    const uint32_t criticalVoltage = (uint32_t)cells * config->cellCritical;
+    const uint32_t voltage = getBattery2Voltage();
+    if (voltage <= criticalVoltage) {
+        return 0;
+    }
+    if (voltage >= fullVoltage) {
+        return 100;
+    }
+
+    return (uint8_t)(((voltage - criticalVoltage) * 100) / (fullVoltage - criticalVoltage));
+}
+
+/**
+ * Draws the battery symbol filled according to the supplied battery percentage.
+ */
+static void osdFormatBatteryChargeSymbol(char *buff, uint8_t percentage)
+{
+    uint8_t p = (100 - percentage) / 16.6;
     buff[0] = SYM_BATT_FULL + p;
 }
 
@@ -1599,7 +1619,7 @@ static void osdDisplayBatteryVoltage(uint8_t elemPosX, uint8_t elemPosY, uint16_
     char buff[7];
     textAttributes_t elemAttr = TEXT_ATTRIBUTES_NONE;
 
-    osdFormatBatteryChargeSymbol(buff);
+    osdFormatBatteryChargeSymbol(buff, calculateBatteryPercentage());
     buff[1] = '\0';
     osdUpdateBatteryCapacityOrVoltageTextAttributes(&elemAttr);
     displayWriteWithAttr(osdDisplayPort, elemPosX, elemPosY, buff, elemAttr);
@@ -1792,7 +1812,7 @@ static void osdDisplayBattery2Voltage(uint8_t elemPosX, uint8_t elemPosY, uint16
     const bool battery2Warning = getBattery2State() == BATTERY2_WARNING || getBattery2State() == BATTERY2_CRITICAL;
     char batterySymbol[2];
     textAttributes_t elemAttr = TEXT_ATTRIBUTES_NONE;
-    osdFormatBatteryChargeSymbol(batterySymbol);
+    osdFormatBatteryChargeSymbol(batterySymbol, calculateBattery2Percentage());
     batterySymbol[1] = '\0';
     if (battery2Warning) {
         TEXT_ATTRIBUTES_ADD_BLINK(elemAttr);
@@ -2052,7 +2072,7 @@ static bool osdDrawSingleElement(uint8_t item)
         break;
     }
     case OSD_BATTERY_REMAINING_PERCENT:
-        osdFormatBatteryChargeSymbol(buff);
+        osdFormatBatteryChargeSymbol(buff, calculateBatteryPercentage());
         tfp_sprintf(buff + 1, "%3d%%", calculateBatteryPercentage());
         osdUpdateBatteryCapacityOrVoltageTextAttributes(&elemAttr);
         break;
