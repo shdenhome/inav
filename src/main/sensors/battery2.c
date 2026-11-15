@@ -58,7 +58,8 @@ PG_RESET_TEMPLATE(battery2Config_t, battery2Config,
     .voltageSensor = BATTERY2_SENSOR_I2C,
     .currentEnabled = 1,
     .currentSensor = BATTERY2_SENSOR_I2C,
-    .canBatteryId = 1
+    .canBatteryId = 1,
+    .currentI2cAddress = 69
 );
 
 static uint16_t battery2Voltage;
@@ -70,7 +71,6 @@ static uint32_t battery2MAhDrawn;
 static uint8_t battery2Cells;
 static battery2State_e battery2State = BATTERY2_UNAVAILABLE;
 static bool battery2Present;
-static bool battery2Ambiguous;
 static bool battery2HasPreviousSample;
 static int64_t battery2MAhAccumulator;
 static timeUs_t battery2PollElapsed;
@@ -84,27 +84,7 @@ static ina2xxDev_t battery2Ina;
 
 static bool battery2DetectSensor(void)
 {
-    static const uint8_t addresses[] = {0x45, 0x44, 0x41};
-    uint8_t detectedCount = 0;
-
-    for (uint8_t index = 0; index < ARRAYLEN(addresses); index++) {
-        ina2xxDev_t candidate = {0};
-        if (!ina2xxInit(&candidate, BATTERY2_I2C_BUS, addresses[index], index)) {
-            continue;
-        }
-
-        detectedCount++;
-        if (detectedCount == 1) {
-            battery2Ina = candidate;
-        } else {
-            ina2xxDeInit(&candidate);
-            ina2xxDeInit(&battery2Ina);
-            battery2Ambiguous = true;
-            return false;
-        }
-    }
-
-    return detectedCount == 1;
+    return ina2xxInit(&battery2Ina, BATTERY2_I2C_BUS, battery2Config()->currentI2cAddress, 0);
 }
 #endif
 
@@ -120,7 +100,6 @@ void battery2Init(void)
     battery2Cells = 0;
     battery2State = BATTERY2_UNAVAILABLE;
     battery2Present = false;
-    battery2Ambiguous = false;
     battery2HasPreviousSample = false;
     battery2MAhAccumulator = 0;
     battery2PollElapsed = 0;
@@ -283,7 +262,7 @@ void battery2Update(timeUs_t timeDelta)
         && (millis() - battery2CanLastUpdateMs) <= BATTERY2_CAN_TIMEOUT_MS;
 
 #if defined(USE_BATTERY2_INA2XX)
-    if (battery2Ina.busDev && !battery2Ambiguous) {
+    if (battery2Ina.busDev) {
         uint16_t rawVoltage;
         int32_t rawShuntVoltage;
         if (config->voltageEnabled && config->voltageSensor == BATTERY2_SENSOR_I2C
@@ -391,7 +370,7 @@ bool isBattery2Supported(void)
 
 bool isBattery2Present(void)
 {
-    return battery2Present && !battery2Ambiguous;
+    return battery2Present;
 }
 
 bool isBattery2PowerAvailable(void)

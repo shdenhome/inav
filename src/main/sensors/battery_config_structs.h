@@ -115,6 +115,7 @@ typedef struct battery2Config_s {
     uint8_t currentEnabled;
     uint8_t currentSensor;
     uint8_t canBatteryId;
+    uint8_t currentI2cAddress;    // 7-bit address, decimal (default 69 / 0x45)
 } battery2Config_t;
 
 typedef struct batteryProfile_s {

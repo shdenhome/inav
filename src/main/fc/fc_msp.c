@@ -1063,6 +1063,7 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         sbufWriteU8(dst, battery2Config()->currentEnabled);
         sbufWriteU8(dst, battery2Config()->currentSensor);
         sbufWriteU8(dst, battery2Config()->canBatteryId);
+        sbufWriteU8(dst, battery2Config()->currentI2cAddress);
         break;
 
 #ifdef USE_GPS
@@ -2595,7 +2596,7 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
         break;
 
     case MSP2_INAV_SET_BATTERY2_CONFIG:
-        if (dataSize != 15 && dataSize != 20) {
+        if (dataSize != 15 && dataSize != 20 && dataSize != 21) {
             return MSP_RESULT_ERROR;
         }
 
@@ -2614,6 +2615,7 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
                 .currentEnabled = battery2Config()->currentEnabled,
                 .currentSensor = battery2Config()->currentSensor,
                 .canBatteryId = battery2Config()->canBatteryId,
+                .currentI2cAddress = battery2Config()->currentI2cAddress,
             };
 
             if (dataSize == 20) {
@@ -2623,10 +2625,14 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
                 config.currentSensor = sbufReadU8(src);
                 config.canBatteryId = sbufReadU8(src);
             }
+            if (dataSize == 21) {
+                config.currentI2cAddress = sbufReadU8(src);
+            }
 
             if (config.voltageScale == 0 || config.currentScale == 0 || config.cells > 12
                 || config.voltageEnabled > 1 || config.currentEnabled > 1
                 || config.voltageSensor > BATTERY2_SENSOR_ADC || config.currentSensor > BATTERY2_SENSOR_ADC
+                || config.currentI2cAddress < 0x40 || config.currentI2cAddress > 0x4F
 #if !defined(USE_BATTERY2_ADC)
                 || config.voltageSensor == BATTERY2_SENSOR_ADC || config.currentSensor == BATTERY2_SENSOR_ADC
 #endif
