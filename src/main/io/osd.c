@@ -238,7 +238,11 @@ static bool osdDisplayHasCanvas;
 #define AH_MAX_PITCH_DEFAULT 20 // Specify default maximum AHI pitch value displayed (degrees)
 
 PG_REGISTER_WITH_RESET_TEMPLATE(osdConfig_t, osdConfig, PG_OSD_CONFIG, 0);
-PG_REGISTER_WITH_RESET_FN(osdLayoutsConfig_t, osdLayoutsConfig, PG_OSD_LAYOUTS_CONFIG, 5);
+extern void pgResetFn_osdLayoutsConfig(osdLayoutsConfig_t *osdLayoutsConfig);
+extern pgMigrateFunc pgMigrateFn_osdLayoutsConfig;
+PG_REGISTER_I(osdLayoutsConfig_t, osdLayoutsConfig, PG_OSD_LAYOUTS_CONFIG, 6,
+    .reset = {.fn = (pgResetFunc*)&pgResetFn_osdLayoutsConfig},
+    .migrate = (pgMigrateFunc*)&pgMigrateFn_osdLayoutsConfig);
 
 /* OSD formatting helpers replacing common tfp_sprintf patterns
  * for reduced code size and CPU overhead. */
@@ -4529,6 +4533,21 @@ PG_RESET_TEMPLATE(osdConfig_t, osdConfig,
 
     .radar_peers_display_time = SETTING_OSD_RADAR_PEERS_DISPLAY_TIME_DEFAULT
 );
+
+#define OSD_LAYOUTS_PG_V5_ITEM_COUNT 177
+
+bool pgMigrateFn_osdLayoutsConfig(void *destination, const void *source, uint16_t size, uint8_t version)
+{
+    const uint16_t oldItemCount = OSD_LAYOUTS_PG_V5_ITEM_COUNT;
+    const uint16_t expectedSize = OSD_LAYOUT_COUNT * oldItemCount * sizeof(uint16_t);
+    if (version != 5 || size != expectedSize) {
+        return false;
+    }
+
+    osdLayoutsConfig_t *newConfig = destination;
+    return osdMigrateLayoutPositionsForInsertedItem(&newConfig->item_pos[0][0], source,
+        OSD_LAYOUT_COUNT, oldItemCount, OSD_MZTC_STATUS_RESERVED);
+}
 
 void pgResetFn_osdLayoutsConfig(osdLayoutsConfig_t *osdLayoutsConfig)
 {

@@ -38,8 +38,9 @@ typedef enum {
     PGR_SIZE_PROFILE_FLAG = 0x8000  // start using flags from the top bit down
 } pgRegistryInternal_e;
 
-// function that resets a single parameter group instance
+// functions that initialize a parameter group instance
 typedef void (pgResetFunc)(void * /* base */);
+typedef bool (pgMigrateFunc)(void * /* destination */, const void * /* source */, uint16_t /* size */, uint8_t /* version */);
 
 typedef struct pgRegistry_s {
     pgn_t pgn;             // The parameter group number, the top 4 bits are reserved for version
@@ -51,6 +52,7 @@ typedef struct pgRegistry_s {
         void *ptr;         // Pointer to init template
         pgResetFunc *fn;   // Pointer to pgResetFunc
     } reset;
+    pgMigrateFunc *migrate; // Optional migration for older stored versions
 } pgRegistry_t;
 
 static inline uint16_t pgN(const pgRegistry_t* reg) {return reg->pgn & PGR_PGN_MASK;}

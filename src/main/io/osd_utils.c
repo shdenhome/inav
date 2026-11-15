@@ -17,12 +17,35 @@
 
 #include "io/osd_utils.h"
 
+#include <string.h>
+
 #include "common/maths.h"
 #include "common/typeconversion.h"
 #include "drivers/osd_symbols.h"
 #include "io/displayport_msp_dji_compat.h"
 
 #if defined(USE_OSD) || defined(OSD_UNIT_TEST)
+
+bool osdMigrateLayoutPositionsForInsertedItem(uint16_t *destination, const uint16_t *source,
+    uint8_t layoutCount, uint16_t oldItemCount, uint16_t insertedIndex)
+{
+    if (insertedIndex > oldItemCount) {
+        return false;
+    }
+
+    const uint16_t itemsAfterInsertedIndex = oldItemCount - insertedIndex;
+    const uint16_t newItemCount = oldItemCount + 1;
+    for (uint8_t layout = 0; layout < layoutCount; layout++) {
+        const uint16_t *oldLayout = source + layout * oldItemCount;
+        uint16_t *newLayout = destination + layout * newItemCount;
+        memcpy(newLayout, oldLayout, insertedIndex * sizeof(uint16_t));
+        newLayout[insertedIndex] = 0;
+        memcpy(&newLayout[insertedIndex + 1], &oldLayout[insertedIndex],
+            itemsAfterInsertedIndex * sizeof(uint16_t));
+    }
+
+    return true;
+}
 
 int digitCount(int32_t value)
 {

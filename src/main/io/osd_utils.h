@@ -26,6 +26,10 @@
 
 int digitCount(int32_t value);
 
+/** Inserts an unused item slot into each stored layout and shifts later item positions. */
+bool osdMigrateLayoutPositionsForInsertedItem(uint16_t *destination, const uint16_t *source,
+    uint8_t layoutCount, uint16_t oldItemCount, uint16_t insertedIndex);
+
 /**
  * Formats a number given in cents, to support non integer values
  * without using floating point math. Value is always right aligned

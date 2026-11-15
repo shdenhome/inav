@@ -90,6 +90,8 @@ void pgLoad(const pgRegistry_t* reg, int profileIndex, const void *from, int siz
     if (version == pgVersion(reg)) {
         const int take = MIN(size, pgSize(reg));
         memcpy(pgOffset(reg, profileIndex), from, take);
+    } else if (reg->migrate) {
+        reg->migrate(pgOffset(reg, profileIndex), from, size, version);
     }
 }
 
