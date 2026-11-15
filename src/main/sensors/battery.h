@@ -124,6 +124,7 @@ void battery2Init(void);
 void battery2Update(timeUs_t timeDelta);
 bool isBattery2Supported(void);
 bool isBattery2Present(void);
+bool isBattery2PowerAvailable(void);
 battery2State_e getBattery2State(void);
 uint16_t getBattery2Voltage(void);
 int16_t getBattery2Amperage(void);

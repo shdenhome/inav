@@ -299,6 +299,12 @@ bool isBattery2Present(void)
     return battery2Present && !battery2Ambiguous;
 }
 
+bool isBattery2PowerAvailable(void)
+{
+    const battery2Config_t *config = battery2Config();
+    return isBattery2Present() && config->voltageEnabled && config->currentEnabled;
+}
+
 battery2State_e getBattery2State(void)
 {
     return battery2State;

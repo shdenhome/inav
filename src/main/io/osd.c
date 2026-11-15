@@ -1914,10 +1914,34 @@ static bool osdDrawSingleElement(uint8_t item)
     case OSD_BATTERY2_MAH_DRAWN:
         if (isBattery2Present()) {
             strcpy(buff, "B2:");
-            osdFormatIntUnit(buff + 3, 5, getBattery2MahDrawn(), 0);
-            const size_t valueLength = strlen(buff);
-            buff[valueLength] = SYM_MAH;
-            buff[valueLength + 1] = '\0';
+            const uint8_t mahDigits = osdConfig()->mAh_precision;
+#ifndef DISABLE_MSP_DJI_COMPAT
+            if (isDJICompatibleVideoSystem(osdConfig())) {
+                osdFormatIntUnit(buff + 3, 5, (int)getBattery2MahDrawn(), 0);
+                buff[8] = SYM_MAH;
+                buff[9] = '\0';
+            } else
+#endif
+            {
+                if (osdFormatCentiNumber(buff + 3, (int32_t)getBattery2MahDrawn() * 100, 1000, 0, 2, mahDigits, false)) {
+                    buff[mahDigits + 3] = SYM_AH;
+                } else {
+                    buff[mahDigits + 3] = SYM_MAH;
+                }
+                buff[mahDigits + 4] = '\0';
+            }
+        } else {
+            strcpy(buff, "B2:---");
+        }
+        break;
+
+    case OSD_BATTERY2_POWER:
+        if (isBattery2PowerAvailable()) {
+            strcpy(buff, "B2:");
+            const int32_t battery2Power = (int32_t)getBattery2Voltage() * getBattery2Amperage() / 100;
+            const bool kiloWatt = osdFormatCentiNumber(buff + 3, battery2Power, 1000, 2, 2, 3, false);
+            buff[6] = kiloWatt ? SYM_KILOWATT : SYM_WATT;
+            buff[7] = '\0';
         } else {
             strcpy(buff, "B2:---");
         }
@@ -4496,6 +4520,7 @@ void pgResetFn_osdLayoutsConfig(osdLayoutsConfig_t *osdLayoutsConfig)
     osdLayoutsConfig->item_pos[0][OSD_BATTERY2_VOLTAGE] = OSD_POS(12, 9);
     osdLayoutsConfig->item_pos[0][OSD_BATTERY2_CURRENT_DRAW] = OSD_POS(12, 10);
     osdLayoutsConfig->item_pos[0][OSD_BATTERY2_MAH_DRAWN] = OSD_POS(12, 11);
+    osdLayoutsConfig->item_pos[0][OSD_BATTERY2_POWER] = OSD_POS(12, 12);
 
     osdLayoutsConfig->item_pos[0][OSD_EFFICIENCY_MAH_PER_KM] = OSD_POS(1, 5);
     osdLayoutsConfig->item_pos[0][OSD_EFFICIENCY_WH_PER_KM] = OSD_POS(1, 5);
