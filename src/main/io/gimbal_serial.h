@@ -73,6 +73,7 @@ PG_DECLARE(gimbalSerialConfig_t, gimbalSerialConfig);
 int16_t gimbal_scale12(int16_t inputMin, int16_t inputMax, int16_t value);
 
 int16_t gimbal2pwm(int16_t value);
+void gimbalSerialFinalizePacket(gimbalHtkAttitudePkt_t *packet);
 
 bool gimbalSerialInit(void);
 bool gimbalSerialDetect(void);

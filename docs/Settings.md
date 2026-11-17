@@ -1835,6 +1835,16 @@ Fence action for safehome zone
 
 ---
 
+### gimbal_mode_channel
+
+RC channel selecting serial gimbal UART mode codes 0/1/2 for low/middle/high switch positions. 0 preserves existing INAV mode control. Center and Headtracker take priority. Invalid input selects code 0. C-20T preset mapping is experimental and must be checked on the installed gimbal firmware. See [Gimbal mode channel bench test](GimbalModeChannel.md).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | 0 | 34 |
+
+---
+
 ### gimbal_pan_channel
 
 Gimbal pan rc channel index. 0 is no channel.

@@ -65,6 +65,7 @@ typedef struct gimbalConfig_s {
     int16_t panTrim;
     int16_t tiltTrim;
     int16_t rollTrim;
+    uint8_t modeChannel; // 0 disables RC mode selection
 } gimbalConfig_t;
 
 PG_DECLARE(gimbalConfig_t, gimbalConfig);

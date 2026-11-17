@@ -682,6 +682,15 @@ rssiSource_e getRSSISource(void)
     return activeRssiSource;
 }
 
+bool rxIsChannelValid(unsigned channelNumber)
+{
+    return channelNumber < MAX_SUPPORTED_RC_CHANNEL_COUNT
+        && channelNumber < rxChannelCount
+        && rxIsReceivingSignal()
+        && rxAreFlightChannelsValid()
+        && isRxPulseValid(rcChannels[channelNumber].raw);
+}
+
 int16_t rxGetChannelValue(unsigned channelNumber)
 {
     if (LOGIC_CONDITION_GLOBAL_FLAG(LOGIC_CONDITION_GLOBAL_FLAG_OVERRIDE_RC_CHANNEL)) {

@@ -233,6 +233,8 @@ void resumeRxSignal(void);
 // filtering and some extra processing like value holding
 // during failsafe.
 int16_t rxGetChannelValue(unsigned channelNumber);
+// Checks the actual receiver channel count and current raw pulse before reading held data.
+bool rxIsChannelValid(unsigned channelNumber);
 
 // MSP aux channel overlay (CH13-CH32). Sets a channel value that persists
 // across RX update cycles. value=0 ignores that channel and skips it.

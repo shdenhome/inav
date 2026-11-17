@@ -39,6 +39,8 @@
 
 #include <rx/rx.h>
 #include <fc/rc_modes.h>
+#include <flight/failsafe.h>
+#include "io/gimbal_mode_logic.h"
 
 #include <config/parameter_group_ids.h>
 
@@ -69,6 +71,9 @@ static serialPort_t *headTrackerPort = NULL;
 #endif
 
 static serialPort_t *gimbalPort = NULL;
+#ifndef GIMBAL_UNIT_TEST
+static gimbalModeSwitchState_t modeSwitchState;
+#endif
 
 gimbalVTable_t gimbalSerialVTable = {
     .process = gimbalSerialProcess,
@@ -212,10 +217,11 @@ void gimbalSerialProcess(gimbalDevice_t *gimbalDevice, timeUs_t currentTime)
         attitude.mode |= GIMBAL_MODE_ROLL_LOCK;
     }
 
-    // Follow center overrides all
-    if (IS_RC_MODE_ACTIVE(BOXGIMBALCENTER) || IS_RC_MODE_ACTIVE(BOXGIMBALHTRK)) {
-        attitude.mode = GIMBAL_MODE_FOLLOW;
-    }
+    const bool modeChannelValid = cfg->modeChannel > 0
+        && rxIsChannelValid(cfg->modeChannel - 1) && !failsafeIsActive();
+    const uint16_t modePwm = modeChannelValid ? rxGetChannelValue(cfg->modeChannel - 1) : 0;
+    attitude.mode = gimbalModeSelect(&modeSwitchState, cfg->modeChannel, modeChannelValid && isRxPulseValid(modePwm), modePwm,
+        IS_RC_MODE_ACTIVE(BOXGIMBALCENTER), IS_RC_MODE_ACTIVE(BOXGIMBALHTRK), attitude.mode, millis());
     
     if (rxAreFlightChannelsValid() && !IS_RC_MODE_ACTIVE(BOXGIMBALCENTER)) {
         if (cfg->panChannel > 0) {
@@ -267,13 +273,7 @@ void gimbalSerialProcess(gimbalDevice_t *gimbalDevice, timeUs_t currentTime)
 
     attitude.sensibility = cfg->sensitivity;
 
-    uint16_t crc16 = 0;
-    uint8_t *b = (uint8_t *)&attitude;
-    for (uint8_t i = 0; i < sizeof(gimbalHtkAttitudePkt_t) - 2; i++) {
-        crc16 = crc16_ccitt(crc16, *(b + i));
-    }
-    attitude.crch = (crc16 >> 8) & 0xFF;
-    attitude.crcl = crc16 & 0xFF;
+    gimbalSerialFinalizePacket(&attitude);
 
     serialGimbalDevice.currentPanPWM = gimbal2pwm(attitude.pan);
 
@@ -282,6 +282,17 @@ void gimbalSerialProcess(gimbalDevice_t *gimbalDevice, timeUs_t currentTime)
     serialEndWrite(gimbalPort);
 }
 #endif
+
+void gimbalSerialFinalizePacket(gimbalHtkAttitudePkt_t *packet)
+{
+    uint16_t crc16 = 0;
+    const uint8_t *bytes = (const uint8_t *)packet;
+    for (unsigned i = 0; i < sizeof(*packet) - 2; i++) {
+        crc16 = crc16_ccitt(crc16, bytes[i]);
+    }
+    packet->crch = crc16 >> 8;
+    packet->crcl = crc16 & 0xFF;
+}
 
 int16_t gimbal2pwm(int16_t value)
 {

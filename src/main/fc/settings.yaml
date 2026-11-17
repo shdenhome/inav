@@ -4735,6 +4735,12 @@ groups:
         field: tiltChannel
         min: 0
         max: 32
+      - name: gimbal_mode_channel
+        description: "RC channel selecting serial gimbal mode codes 0/1/2 (low/middle/high). 0 preserves INAV mode control. Experimental C-20T preset mapping: verify on the installed gimbal firmware. Invalid input selects code 0; Center and Headtracker take priority."
+        default_value: 0
+        field: modeChannel
+        min: 0
+        max: MAX_SUPPORTED_RC_CHANNEL_COUNT
       - name: gimbal_sensitivity
         description: "Gimbal sensitivity is similar to gain and will affect how quickly the gimbal will react."
         default_value: 0

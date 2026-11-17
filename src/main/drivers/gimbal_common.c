@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stddef.h>
 
 #include <build/debug.h>
 #include <config/parameter_group_ids.h>
@@ -36,17 +38,33 @@
 #include "settings_generated.h"
 
 
-PG_REGISTER_WITH_RESET_TEMPLATE(gimbalConfig_t, gimbalConfig, PG_GIMBAL_CONFIG, 1);
+PG_REGISTER_WITH_RESET_FN_AND_MIGRATE(gimbalConfig_t, gimbalConfig, PG_GIMBAL_CONFIG, 2);
 
-PG_RESET_TEMPLATE(gimbalConfig_t, gimbalConfig, 
-    .panChannel = SETTING_GIMBAL_PAN_CHANNEL_DEFAULT,
-    .tiltChannel = SETTING_GIMBAL_TILT_CHANNEL_DEFAULT,
-    .rollChannel = SETTING_GIMBAL_ROLL_CHANNEL_DEFAULT,
-    .sensitivity = SETTING_GIMBAL_SENSITIVITY_DEFAULT,
-    .panTrim = SETTING_GIMBAL_PAN_TRIM_DEFAULT,
-    .tiltTrim = SETTING_GIMBAL_TILT_TRIM_DEFAULT,
-    .rollTrim = SETTING_GIMBAL_ROLL_TRIM_DEFAULT
-);
+void pgResetFn_gimbalConfig(gimbalConfig_t *config)
+{
+    *config = (gimbalConfig_t) {
+        .panChannel = SETTING_GIMBAL_PAN_CHANNEL_DEFAULT,
+        .tiltChannel = SETTING_GIMBAL_TILT_CHANNEL_DEFAULT,
+        .rollChannel = SETTING_GIMBAL_ROLL_CHANNEL_DEFAULT,
+        .sensitivity = SETTING_GIMBAL_SENSITIVITY_DEFAULT,
+        .panTrim = SETTING_GIMBAL_PAN_TRIM_DEFAULT,
+        .tiltTrim = SETTING_GIMBAL_TILT_TRIM_DEFAULT,
+        .rollTrim = SETTING_GIMBAL_ROLL_TRIM_DEFAULT,
+        .modeChannel = SETTING_GIMBAL_MODE_CHANNEL_DEFAULT,
+    };
+}
+
+bool pgMigrateFn_gimbalConfig(void *to, const void *from, uint16_t size, uint8_t version)
+{
+    // V1 ended after rollTrim. Copy its fields without consuming the new field.
+    const size_t legacySize = offsetof(gimbalConfig_t, modeChannel);
+    if (version == 1 && size == (int)legacySize) {
+        memcpy(to, from, legacySize);
+        ((gimbalConfig_t *)to)->modeChannel = 0;
+        return true;
+    }
+    return false;
+}
 
 static gimbalDevice_t *commonGimbalDevice = NULL;
 
