@@ -62,6 +62,7 @@ bool baroInit(void);
 bool baroIsCalibrationComplete(void);
 void baroStartCalibration(void);
 uint32_t baroUpdate(void);
+bool baroHasNewSample(void);
 int32_t baroCalculateAltitude(void);
 int32_t baroGetLatestAltitude(void);
 int16_t baroGetTemperature(void);
@@ -71,4 +72,8 @@ bool baroIsHealthy(void);
 float altitudeToPressure(const float altCm);
 #endif
 
+#endif
+
+#ifdef USE_MULTI_SENSOR
+float baroGetPressureOffset(unsigned slot);
 #endif

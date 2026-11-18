@@ -41,6 +41,8 @@ main_sources(COMMON_SRC
     common/olc.h
     common/printf.c
     common/printf.h
+    common/sensor_fusion.c
+    common/sensor_fusion.h
     common/streambuf.c
     common/streambuf.h
     common/string_light.c
@@ -514,6 +516,10 @@ main_sources(COMMON_SRC
     sensors/diagnostics.h
     sensors/gyro.c
     sensors/gyro.h
+    sensors/multi_acc.c
+    sensors/multi_acc.h
+    sensors/multi_sensor.c
+    sensors/multi_sensor.h
     sensors/initialisation.c
     sensors/initialisation.h
     sensors/esc_sensor.c

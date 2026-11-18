@@ -37,6 +37,9 @@
 
 // *************** IMU generic ***********************
 #define USE_DUAL_GYRO
+#if defined(MATEKH743HD)
+#define USE_MULTI_SENSOR
+#endif
 #define USE_TARGET_IMU_HARDWARE_DESCRIPTORS
 
 

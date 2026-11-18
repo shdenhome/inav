@@ -75,6 +75,12 @@ static void mpu6500AccAndGyroInit(gyroDev_t *gyro)
     busWrite(dev, MPU_RA_PWR_MGMT_1, MPU6500_BIT_RESET);
     delay(100);
 
+#ifdef USE_MULTI_SENSOR
+    if (gyro->pollingOnly && !busWrite(dev, MPU_RA_INT_ENABLE, 0)) {
+        gyro->sampleRateIntervalUs = 0;
+        return;
+    }
+#endif
     busWrite(dev, MPU_RA_SIGNAL_PATH_RESET, 0x07);      // BIT_GYRO | BIT_ACC | BIT_TEMP
     delay(100);
 
@@ -101,7 +107,7 @@ static void mpu6500AccAndGyroInit(gyroDev_t *gyro)
 
 static bool mpu6500DeviceDetect(busDevice_t * dev)
 {
-    uint8_t tmp;
+    uint8_t tmp = 0;
     uint8_t attemptsRemaining = 5;
 
     busSetSpeed(dev, BUS_SPEED_INITIALIZATION);
@@ -111,7 +117,9 @@ static bool mpu6500DeviceDetect(busDevice_t * dev)
     do {
         delay(150);
 
-        busRead(dev, MPU_RA_WHO_AM_I, &tmp);
+        if (!busRead(dev, MPU_RA_WHO_AM_I, &tmp)) {
+            continue;
+        }
 
         switch (tmp) {
             case MPU6500_WHO_AM_I_CONST:

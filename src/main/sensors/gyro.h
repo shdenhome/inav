@@ -137,3 +137,8 @@ int16_t gyroGetTemperature(void);
 int16_t gyroRateDps(int axis);
 void gyroUpdateDynamicLpf(float cutoffFreq);
 float averageAbsGyroRates(void);
+
+#ifdef USE_MULTI_SENSOR
+uint8_t gyroGetImuTag(unsigned slot);
+uint32_t gyroGetImuSampleTime(unsigned slot);
+#endif

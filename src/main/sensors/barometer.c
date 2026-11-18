@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
+#include <string.h>
 
 #include "platform.h"
 #include "build/debug.h"
@@ -49,6 +50,7 @@
 #include "fc/settings.h"
 
 #include "sensors/barometer.h"
+#include "sensors/multi_sensor.h"
 #include "sensors/sensors.h"
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
@@ -253,8 +255,194 @@ bool baroDetect(baroDev_t *dev, baroSensor_e baroHardwareToUse)
     return true;
 }
 
+#ifdef USE_MULTI_SENSOR
+typedef struct multiBarometer_s {
+    baroDev_t dev;
+    uint32_t dueUs;
+    int32_t temperature;
+    bool detected;
+    bool pressurePending;
+    bool conversionStarted;
+} multiBarometer_t;
+static multiBarometer_t multiBarometer[MULTI_BARO_COUNT];
+static bool multiBaroNewSample;
+static zeroCalibrationScalar_t multiBaroDifferenceCalibration;
+static bool multiBaroAlignmentActive;
+static bool multiBaroAlignmentReady;
+static float multiBaroDifference;
+
+float baroGetPressureOffset(unsigned slot)
+{
+    if (!multiBaroAlignmentActive || !multiBaroAlignmentReady || slot >= MULTI_BARO_COUNT) {
+        return 0;
+    }
+    return (slot == 0 ? 0.5f : -0.5f) * multiBaroDifference;
+}
+
+
+static bool multiBaroInit(void)
+{
+    memset(multiBarometer, 0, sizeof(multiBarometer));
+    memset(multiBaroSamples, 0, sizeof(multiBaroSamples));
+    sensorFusionReset(&multiBaroFusion);
+    multiBaroNewSample = false;
+    multiBaroAlignmentActive = false;
+    multiBaroAlignmentReady = false;
+    multiBaroDifference = 0;
+    // These are different chips with independent driver state, on distinct addresses.
+    multiBarometer[0].detected = ms5611Detect(&multiBarometer[0].dev);
+    multiBarometer[1].detected = spl06Detect(&multiBarometer[1].dev);
+    const bool present = multiBarometer[0].detected || multiBarometer[1].detected;
+    if (present) {
+        detectedSensors[SENSOR_INDEX_BARO] = multiBarometer[0].detected ? BARO_MS5611 : BARO_SPL06;
+        sensorsSet(SENSOR_BARO);
+    } else {
+        detectedSensors[SENSOR_INDEX_BARO] = BARO_NONE;
+        sensorsClear(SENSOR_BARO);
+    }
+    requestedSensors[SENSOR_INDEX_BARO] = BARO_AUTODETECT;
+    const uint32_t now = micros();
+    for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+        multiBarometer_t *sensor = &multiBarometer[i];
+        if (sensor->detected) {
+            sensor->conversionStarted = sensor->dev.start_ut(&sensor->dev);
+            sensor->dueUs = now + sensor->dev.ut_delay;
+        }
+    }
+    return present;
+}
+
+static uint32_t multiBaroUpdate(void)
+{
+    const uint32_t now = micros();
+    uint32_t next = 10000;
+    multiBaroNewSample = false;
+    bool newPressure[MULTI_BARO_COUNT] = {false};
+    for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+        multiBarometer_t *sensor = &multiBarometer[i];
+        if (!sensor->detected) {
+            continue;
+        }
+        if ((int32_t)(now - sensor->dueUs) >= 0) {
+            bool ok = sensor->conversionStarted;
+            if (sensor->pressurePending) {
+                ok = ok && sensor->dev.get_up(&sensor->dev);
+                int32_t pressure = 0, temperature = 0;
+                ok = ok && sensor->dev.calculate(&sensor->dev, &pressure, &temperature);
+                ok = ok && pressure >= 1000 && pressure <= 150000 && temperature >= -10000 && temperature <= 15000;
+                multiBaroSamples[i].valid = ok;
+                if (ok) {
+                    multiBaroSamples[i].value[0] = pressure;
+                    multiBaroSamples[i].timestampUs = now;
+                    sensor->temperature = temperature;
+                    newPressure[i] = true;
+                }
+                sensor->pressurePending = false;
+                sensor->conversionStarted = sensor->dev.start_ut(&sensor->dev);
+                sensor->dueUs = now + sensor->dev.ut_delay;
+            } else {
+                ok = ok && sensor->dev.get_ut(&sensor->dev);
+                if (ok) {
+                    sensor->conversionStarted = sensor->dev.start_up(&sensor->dev);
+                    sensor->pressurePending = true;
+                    sensor->dueUs = now + sensor->dev.up_delay;
+                } else {
+                    multiBaroSamples[i].valid = false;
+                    sensor->conversionStarted = sensor->dev.start_ut(&sensor->dev);
+                    sensor->dueUs = now + sensor->dev.ut_delay;
+                }
+            }
+            if (!sensor->conversionStarted) {
+                multiBaroSamples[i].valid = false;
+                // Retry temperature acquisition on the next service, never read a failed conversion.
+                sensor->pressurePending = false;
+                sensor->dueUs = now + 10000;
+            }
+        }
+        const int32_t wait = (int32_t)(sensor->dueUs - now);
+        const uint32_t remaining = wait > 0 ? (uint32_t)wait : 1000;
+        if (remaining < next) {
+            next = remaining;
+        }
+    }
+    const sensorFusionConfig_t config = multiSensorFusionConfig(multiSensorConfig()->baroDeviationPa, true);
+    if (multiBaroAlignmentActive && !multiBaroAlignmentReady) {
+        bool pairFresh = true;
+        for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+            pairFresh = pairFresh && multiBaroSamples[i].valid &&
+                (uint32_t)(now - multiBaroSamples[i].timestampUs) <= config.maxAgeUs;
+        }
+        if (!pairFresh) {
+            zeroCalibrationStartS(&multiBaroDifferenceCalibration, CALIBRATING_BARO_TIME_MS,
+                multiBaroDifferenceCalibration.params.stdDevThreshold, false);
+        } else if (newPressure[0] || newPressure[1]) {
+            zeroCalibrationAddValueS(&multiBaroDifferenceCalibration,
+                multiBaroSamples[1].value[0] - multiBaroSamples[0].value[0]);
+            if (zeroCalibrationIsCompleteS(&multiBaroDifferenceCalibration) &&
+                zeroCalibrationIsSuccessfulS(&multiBaroDifferenceCalibration)) {
+                float difference;
+                zeroCalibrationGetZeroS(&multiBaroDifferenceCalibration, &difference);
+                // A gross discrepancy is not a ground-datum adjustment. Do not hide
+                // an implausible source behind a very large learned offset.
+                if (fabsf(difference) > multiSensorConfig()->baroDeviationPa * 10.0f) {
+                    zeroCalibrationStartS(&multiBaroDifferenceCalibration, CALIBRATING_BARO_TIME_MS,
+                        multiBaroDifferenceCalibration.params.stdDevThreshold, false);
+                } else {
+                    multiBaroDifference = difference;
+                    multiBaroAlignmentReady = true;
+                    sensorFusionReset(&multiBaroFusion);
+                    // Re-establish the common ground reference in the aligned datum.
+                    zeroCalibrationStartS(&zeroCalibration, CALIBRATING_BARO_TIME_MS,
+                        zeroCalibration.params.stdDevThreshold, false);
+                }
+            }
+        }
+    }
+    sensorFusionSample_t aligned[MULTI_BARO_COUNT];
+    memcpy(aligned, multiBaroSamples, sizeof(aligned));
+    for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+        aligned[i].value[0] += baroGetPressureOffset(i);
+        aligned[i].valid = aligned[i].valid && aligned[i].value[0] >= 1000 && aligned[i].value[0] <= 150000;
+    }
+    if (sensorFusionUpdate(&multiBaroFusion, aligned, MULTI_BARO_COUNT, 1, now, &config)) {
+        baro.baroPressure = lrintf(multiBaroFusion.output[0]);
+        float temperature = 0, sum = 0;
+        for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+            if (multiBaroFusion.member[i].usable && multiBaroFusion.member[i].confidence >= SENSOR_FUSION_MIN_CONFIDENCE) {
+                multiBaroNewSample = multiBaroNewSample || newPressure[i];
+                temperature += multiBarometer[i].temperature * multiBaroFusion.member[i].confidence;
+                sum += multiBaroFusion.member[i].confidence;
+            }
+        }
+        if (sum > 0) {
+            baro.baroTemperature = lrintf(temperature / sum);
+        }
+    } else {
+        multiBaroNewSample = false;
+    }
+    return next < 1000 ? 1000 : next;
+}
+#endif
+
+bool baroHasNewSample(void)
+{
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorBaroEnabled()) {
+        return multiBaroNewSample && multiBaroFusion.healthy;
+    }
+#endif
+    return true;
+}
+
 bool baroInit(void)
 {
+#ifdef USE_MULTI_SENSOR
+    multiSensorLatchBaroMode();
+    if (multiSensorBaroEnabled()) {
+        return multiBaroInit();
+    }
+#endif
+
     if (!baroDetect(&baro.dev, barometerConfig()->baro_hardware)) {
         return false;
     }
@@ -273,6 +461,12 @@ uint32_t baroUpdate(void)
 #ifdef USE_SIMULATOR
     if (ARMING_FLAG(SIMULATOR_MODE_HITL)) {
         return 0;
+    }
+#endif
+
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorBaroEnabled()) {
+        return multiBaroUpdate();
     }
 #endif
 
@@ -316,6 +510,11 @@ float altitudeToPressure(const float altCm)
 
 bool baroIsCalibrationComplete(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorBaroEnabled() && multiBaroAlignmentActive && !multiBaroAlignmentReady) {
+        return false;
+    }
+#endif
     return zeroCalibrationIsCompleteS(&zeroCalibration) && zeroCalibrationIsSuccessfulS(&zeroCalibration);
 }
 
@@ -323,10 +522,25 @@ void baroStartCalibration(void)
 {
     const float acceptedPressureVariance = (101325.0f - altitudeToPressure(barometerConfig()->baro_calibration_tolerance)); // max 30cm deviation during calibration (at sea level)
     zeroCalibrationStartS(&zeroCalibration, CALIBRATING_BARO_TIME_MS, acceptedPressureVariance, false);
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorBaroEnabled()) {
+        multiBaroAlignmentActive = true;
+        multiBaroAlignmentReady = !(multiBarometer[0].detected && multiBarometer[1].detected);
+        multiBaroDifference = 0;
+        zeroCalibrationStartS(&multiBaroDifferenceCalibration, CALIBRATING_BARO_TIME_MS,
+            fmaxf(1, acceptedPressureVariance * 2), false);
+        sensorFusionReset(&multiBaroFusion);
+    }
+#endif
 }
 
 int32_t baroCalculateAltitude(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorBaroEnabled() && !multiBaroFusion.healthy) {
+        return baro.BaroAlt;
+    }
+#endif
     if (!baroIsCalibrationComplete()) {
         zeroCalibrationAddValueS(&zeroCalibration, baro.baroPressure);
 
@@ -341,6 +555,11 @@ int32_t baroCalculateAltitude(void)
     else {
         // calculates height from ground via baro readings
         baro.BaroAlt = pressureToAltitude(baro.baroPressure) - baroGroundAltitude;
+#ifdef USE_MULTI_SENSOR
+        // The legacy correction belongs to a single sensor. Both drivers already
+        // compensate their own pressure; never apply that single-sensor fit to a blend.
+        if (!multiSensorBaroEnabled())
+#endif
         baro.BaroAlt += applySensorTempCompensation(baro.baroTemperature, baro.BaroAlt, SENSOR_INDEX_BARO);
    }
 
@@ -359,6 +578,11 @@ int16_t baroGetTemperature(void)
 
 bool baroIsHealthy(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorBaroEnabled()) {
+        return multiBaroFusion.healthy;
+    }
+#endif
     return sensors(SENSOR_BARO);
 }
 

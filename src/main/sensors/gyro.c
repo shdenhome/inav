@@ -65,6 +65,8 @@
 
 #include "sensors/boardalignment.h"
 #include "sensors/gyro.h"
+#include "sensors/multi_sensor.h"
+#include "drivers/time.h"
 #include "sensors/sensors.h"
 
 #include "flight/gyroanalyse.h"
@@ -78,7 +80,10 @@
 
 FASTRAM gyro_t gyro; // gyro sensor object
 
-#ifdef USE_DUAL_GYRO
+#if defined(USE_MULTI_SENSOR)
+#define MAX_GYRO_COUNT 3
+#define MAX_GYRO_SENSOR_TAG 2
+#elif defined(USE_DUAL_GYRO)
 #define MAX_GYRO_COUNT 2
 // Highest IMU tag any in-tree target uses: most are 0 and 1, AETH743Basic is 0 and 2
 #define MAX_GYRO_SENSOR_TAG 2
@@ -93,6 +98,20 @@ FASTRAM gyro_t gyro; // gyro sensor object
 
 STATIC_UNIT_TESTED gyroDev_t gyroDev[MAX_GYRO_COUNT];  // Not in FASTRAM since it may hold DMA buffers
 STATIC_FASTRAM int16_t gyroTemperature[MAX_GYRO_COUNT];
+#ifdef USE_MULTI_SENSOR
+static bool multiGyroDetected[MAX_GYRO_COUNT];
+static uint32_t multiGyroReadAt[MAX_GYRO_COUNT];
+uint32_t gyroGetImuSampleTime(unsigned slot)
+{
+    return slot < MAX_GYRO_COUNT ? multiGyroReadAt[slot] : 0;
+}
+
+uint8_t gyroGetImuTag(unsigned slot)
+{
+    return slot < MAX_GYRO_COUNT && multiGyroDetected[slot] ? gyroDev[slot].imuSensorToUse : UINT8_MAX;
+}
+#endif
+
 STATIC_FASTRAM_UNIT_TESTED zeroCalibrationVector_t gyroCalibration[MAX_GYRO_COUNT];
 
 STATIC_FASTRAM filterApplyFnPtr gyroLpfApplyFn;
@@ -332,17 +351,28 @@ static void gyroInitFilters(void)
 
 // Both gyros start the same way, so on a dual-IMU board their two channels in a log
 // compare like for like
-static void gyroDevStart(gyroDev_t *dev)
+static bool gyroDevStart(gyroDev_t *dev)
 {
     dev->lpf = GYRO_LPF_256HZ;
     dev->requestedSampleIntervalUs = TASK_GYRO_LOOPTIME;
     dev->sampleRateIntervalUs = TASK_GYRO_LOOPTIME;
+#ifdef USE_MULTI_SENSOR
+    dev->pollingOnly = multiSensorImuEnabled();
+#endif
     dev->initFn(dev);
+    return dev->sampleRateIntervalUs != 0;
 }
 
 bool gyroInit(void)
 {
     memset(&gyro, 0, sizeof(gyro));
+#ifdef USE_MULTI_SENSOR
+    multiSensorLatchImuMode();
+    memset(multiGyroDetected, 0, sizeof(multiGyroDetected));
+    memset(multiGyroReadAt, 0, sizeof(multiGyroReadAt));
+    memset(multiGyroSamples, 0, sizeof(multiGyroSamples));
+    sensorFusionReset(&multiGyroFusion);
+#endif
     for (int i = 0; i < MAX_GYRO_COUNT; i++) {
         gyroCalibrationComplete[i] = false;
     }
@@ -354,11 +384,48 @@ bool gyroInit(void)
     gyroDev[0].imuSensorToUse = 0;
 #endif
 
-    // Detecting gyro0
-    gyroSensor_e gyroHardware = gyroDetect(&gyroDev[0], GYRO_AUTODETECT);
+    gyroSensor_e gyroHardware = GYRO_NONE;
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        const uint8_t order[] = {gyroConfig()->gyro_to_use, 0, 1, 2};
+        bool tried[MULTI_IMU_COUNT] = {false};
+        unsigned slot = 0;
+        for (unsigned i = 0; i < ARRAYLEN(order); i++) {
+            const uint8_t tag = order[i];
+            if (tag >= MULTI_IMU_COUNT || tried[tag]) {
+                continue;
+            }
+            tried[tag] = true;
+            gyroDev[slot].imuSensorToUse = tag;
+            const gyroSensor_e hardware = gyroDetect(&gyroDev[slot], GYRO_AUTODETECT);
+            if (hardware == GYRO_NONE) {
+                continue;
+            }
+            if (!gyroDevStart(&gyroDev[slot])) {
+                if (gyroDev[slot].busDev) {
+                    busDeviceDeInit(gyroDev[slot].busDev);
+                }
+                continue;
+            }
+            if (slot == 0) {
+                gyroHardware = hardware;
+            }
+            multiGyroDetected[slot++] = true;
+        }
+        gyro.secondaryInitialized = slot > 1;
+    } else
+#endif
+    {
+        gyroHardware = gyroDetect(&gyroDev[0], GYRO_AUTODETECT);
+    }
     if (gyroHardware == GYRO_NONE) {
         gyro.initialized = false;
         detectedSensors[SENSOR_INDEX_GYRO] = GYRO_NONE;
+#ifdef USE_MULTI_SENSOR
+        if (multiSensorImuEnabled()) {
+            sensorsClear(SENSOR_GYRO);
+        }
+#endif
         return true;
     }
 
@@ -367,17 +434,37 @@ bool gyroInit(void)
     detectedSensors[SENSOR_INDEX_GYRO] = gyroHardware;
     sensorsSet(SENSOR_GYRO);
 
-    // Driver initialisation
+    // Multi mode has already initialized each successfully detected device above.
+#ifdef USE_MULTI_SENSOR
+    if (!multiSensorImuEnabled()) {
+        gyroDevStart(&gyroDev[0]);
+        multiGyroDetected[0] = true;
+    }
+#else
     gyroDevStart(&gyroDev[0]);
+#endif
 
     // initFn will initialize sampleRateIntervalUs to actual gyro sampling rate (if driver supports it). Calculate target looptime using that value
     gyro.targetLooptime = gyroDev[0].sampleRateIntervalUs;
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        for (unsigned slot = 1; slot < MAX_GYRO_COUNT; slot++) {
+            if (multiGyroDetected[slot]) {
+                gyro.targetLooptime = MIN(gyro.targetLooptime, gyroDev[slot].sampleRateIntervalUs);
+            }
+        }
+    }
+#endif
 
     gyroInitFilters();
 
 #ifdef USE_DUAL_GYRO
     // Optional secondary IMU, logged as gyroRaw2 and read by nothing else
-    if (gyroConfig()->gyro_secondary_enabled) {
+    if (gyroConfig()->gyro_secondary_enabled
+#ifdef USE_MULTI_SENSOR
+        && !multiSensorImuEnabled()
+#endif
+    ) {
         // Targets disagree on how they tag the second IMU, so probe rather than assume tag 1
         for (uint8_t tag = 0; tag <= MAX_GYRO_SENSOR_TAG; tag++) {
             if (tag == gyroConfig()->gyro_to_use) {
@@ -424,6 +511,21 @@ void gyroStartCalibration(void)
         return;
     }
 
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        for (unsigned slot = 0; slot < MAX_GYRO_COUNT; slot++) {
+            if (multiGyroDetected[slot]) {
+                gyroCalibrationComplete[slot] = false;
+                zeroCalibrationStartV(&gyroCalibration[slot], CALIBRATING_GYRO_TIME_MS,
+                    gyroMovementThreshold(slot), false);
+            }
+        }
+        sensorFusionReset(&multiGyroFusion);
+        memset(multiGyroSamples, 0, sizeof(multiGyroSamples));
+        return;
+    }
+#endif
+
 #ifdef USE_DUAL_GYRO
     // The secondary measures its own zero and ignores init_gyro_cal: gyro_zero_cal is a
     // single stored value, and it belongs to the gyro that flies
@@ -454,6 +556,20 @@ void gyroSetSecondaryLogging(bool logging)
 
 bool gyroIsCalibrationComplete(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        if (!gyro.initialized) {
+            return false;
+        }
+        for (unsigned slot = 0; slot < MAX_GYRO_COUNT; slot++) {
+            if (multiGyroDetected[slot] && !gyroCalibrationComplete[slot]) {
+                return false;
+            }
+        }
+        return true;
+    }
+#endif
+
     if (!gyro.initialized) {
         return true;
     }
@@ -489,13 +605,22 @@ STATIC_UNIT_TESTED void performGyroCalibration(uint8_t index)
 
 #ifndef USE_IMU_FAKE // fixes Test Unit compilation error
         // gyro_zero_cal is a single shared value: only the gyro that flies may write it
-        if (index == GYRO_PRIMARY) {
+        if (index == GYRO_PRIMARY
+#ifdef USE_MULTI_SENSOR
+            && !multiSensorImuEnabled()
+#endif
+        ) {
             setGyroCalibration(dev->gyroZero);
         }
 #endif
 
         // Cache completion status to avoid function call in hot path
         gyroCalibrationComplete[index] = true;
+#ifdef USE_MULTI_SENSOR
+        if (multiSensorImuEnabled()) {
+            gyroCalibrationComplete[index] = zeroCalibrationIsSuccessfulV(cal);
+        }
+#endif
 
         LOG_DEBUG(GYRO, "Gyro calibration complete (%d, %d, %d)", (int16_t) dev->gyroZero[X], (int16_t) dev->gyroZero[Y], (int16_t) dev->gyroZero[Z]);
         schedulerResetTaskStatistics(TASK_SELF); // so calibration cycles do not pollute tasks statistics
@@ -528,7 +653,11 @@ static inline __attribute__((always_inline)) bool gyroReadAndCalibrate(uint8_t i
     if (dev->readFn(dev)) {
 
 #ifndef USE_IMU_FAKE // fixes Test Unit compilation error
-    if (index == GYRO_PRIMARY && !gyroConfig()->init_gyro_cal_enabled) {
+    if (index == GYRO_PRIMARY && !gyroConfig()->init_gyro_cal_enabled
+#ifdef USE_MULTI_SENSOR
+        && !multiSensorImuEnabled()
+#endif
+    ) {
         // marks that the gyro calibration has ended
         gyroCalibration[index].params.state = ZERO_CALIBRATION_DONE;
         gyroCalibrationComplete[index] = true;
@@ -572,6 +701,37 @@ static inline __attribute__((always_inline)) bool gyroReadAndCalibrate(uint8_t i
 
 static bool FAST_CODE NOINLINE gyroUpdateAndCalibrate(float * gyroADCf)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        const uint32_t now = micros();
+        for (unsigned slot = 0; slot < MAX_GYRO_COUNT; slot++) {
+            if (!multiGyroDetected[slot]) {
+                continue;
+            }
+            const uint32_t interval = gyroDev[slot].sampleRateIntervalUs;
+            if ((uint32_t)(now - multiGyroReadAt[slot]) < interval) {
+                continue;
+            }
+            multiGyroReadAt[slot] = now;
+            multiGyroSamples[slot].valid = gyroReadAndCalibrate(slot, multiGyroSamples[slot].value);
+            multiGyroSamples[slot].timestampUs = now;
+            if (slot == GYRO_SECONDARY) {
+                if (multiGyroSamples[slot].valid) {
+                    memcpy(gyro.gyroRaw2, multiGyroSamples[slot].value, sizeof(gyro.gyroRaw2));
+                } else {
+                    memset(gyro.gyroRaw2, 0, sizeof(gyro.gyroRaw2));
+                }
+            }
+        }
+        const sensorFusionConfig_t config = multiSensorFusionConfig(multiSensorConfig()->gyroDeviationDps, false);
+        if (!sensorFusionUpdate(&multiGyroFusion, multiGyroSamples, MAX_GYRO_COUNT, 3, now, &config)) {
+            return false;
+        }
+        memcpy(gyroADCf, multiGyroFusion.output, sizeof(multiGyroFusion.output));
+        return true;
+    }
+#endif
+
     return gyroReadAndCalibrate(GYRO_PRIMARY, gyroADCf);
 }
 
@@ -686,6 +846,9 @@ void FAST_CODE NOINLINE gyroUpdate(void)
     }
 
 #ifdef USE_DUAL_GYRO
+#ifdef USE_MULTI_SENSOR
+    if (!multiSensorImuEnabled())
+#endif
     gyroUpdateSecondary();
 #endif
 

@@ -82,11 +82,14 @@ STATIC_UNIT_TESTED int8_t ms56xx_crc(uint16_t *prom)
     return -1;
 }
 
-static uint32_t ms56xx_read_adc(baroDev_t *baro)
+static bool ms56xx_read_adc(baroDev_t *baro, uint32_t *result)
 {
     uint8_t rxbuf[3];
-    busReadBuf(baro->busDev, CMD_ADC_READ, rxbuf, 3);
-    return (rxbuf[0] << 16) | (rxbuf[1] << 8) | rxbuf[2];
+    if (!busReadBuf(baro->busDev, CMD_ADC_READ, rxbuf, 3)) {
+        return false;
+    }
+    *result = ((uint32_t)rxbuf[0] << 16) | ((uint32_t)rxbuf[1] << 8) | rxbuf[2];
+    return true;
 }
 
 static bool ms56xx_start_ut(baroDev_t *baro)
@@ -96,8 +99,7 @@ static bool ms56xx_start_ut(baroDev_t *baro)
 
 static bool ms56xx_get_ut(baroDev_t *baro)
 {
-    ms56xx_ut = ms56xx_read_adc(baro);
-    return true;
+    return ms56xx_read_adc(baro, &ms56xx_ut);
 }
 
 static bool ms56xx_start_up(baroDev_t *baro)
@@ -107,8 +109,7 @@ static bool ms56xx_start_up(baroDev_t *baro)
 
 static bool ms56xx_get_up(baroDev_t *baro)
 {
-    ms56xx_up = ms56xx_read_adc(baro);
-    return true;
+    return ms56xx_read_adc(baro, &ms56xx_up);
 }
 
 #ifdef USE_BARO_MS5611
@@ -204,13 +205,17 @@ static bool deviceInit(baroDev_t *baro)
 {
     busSetSpeed(baro->busDev, BUS_SPEED_STANDARD);
 
-    busWrite(baro->busDev, CMD_RESET, 1);
+    if (!busWrite(baro->busDev, CMD_RESET, 1)) {
+        return false;
+    }
     delay(5);
 
     // read all coefficients
     for (int i = 0; i < PROM_NB; i++) {
         uint8_t rxbuf[2] = { 0, 0 };
-        busReadBuf(baro->busDev, CMD_PROM_RD + i * 2, rxbuf, 2);
+        if (!busReadBuf(baro->busDev, CMD_PROM_RD + i * 2, rxbuf, 2)) {
+            return false;
+        }
         ms56xx_c[i] = (rxbuf[0] << 8 | rxbuf[1]);
     }
 

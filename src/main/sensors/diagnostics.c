@@ -18,6 +18,7 @@
 #include "sensors/sensors.h"
 #include "sensors/diagnostics.h"
 #include "sensors/gyro.h"
+#include "sensors/multi_sensor.h"
 #include "sensors/compass.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
@@ -30,6 +31,11 @@ extern uint8_t detectedSensors[SENSOR_INDEX_COUNT];
 
 hardwareSensorStatus_e getHwGyroStatus(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled() && detectedSensors[SENSOR_INDEX_GYRO] != GYRO_NONE) {
+        return multiGyroFusion.healthy ? HW_SENSOR_OK : HW_SENSOR_UNHEALTHY;
+    }
+#endif
     // Gyro is assumed to be always healthy, but it must be present
     if (detectedSensors[SENSOR_INDEX_GYRO] == GYRO_NONE) {
         return HW_SENSOR_UNAVAILABLE;

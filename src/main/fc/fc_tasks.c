@@ -207,7 +207,9 @@ void taskUpdateBaro(timeUs_t currentTimeUs)
         rescheduleTask(TASK_SELF, newDeadline);
     }
 
-    updatePositionEstimator_BaroTopic(currentTimeUs);
+    if (baroHasNewSample()) {
+        updatePositionEstimator_BaroTopic(currentTimeUs);
+    }
 }
 #endif
 

@@ -251,6 +251,171 @@ constants:
 
 
 groups:
+  - name: PG_MULTI_SENSOR_CONFIG
+    type: multiSensorConfig_t
+    headers: ["sensors/multi_sensor.h"]
+    condition: USE_MULTI_SENSOR
+    members:
+      - name: multi_imu_enabled
+        description: "Read and confidence-weight all three onboard IMUs. Requires fresh six-position accelerometer calibration. Reboot required."
+        field: imuEnabled
+        type: bool
+        default_value: OFF
+      - name: multi_baro_enabled
+        description: "Read MS5611 and SPL06 concurrently and confidence-weight pressure. Reboot required."
+        field: baroEnabled
+        type: bool
+        default_value: OFF
+      - name: multi_gyro_deviation
+        description: "Gyroscope disagreement threshold in deg/s for confidence weighting."
+        field: gyroDeviationDps
+        min: 1
+        max: 2000
+        default_value: 100
+      - name: multi_acc_deviation
+        description: "Accelerometer disagreement threshold in milli-g for confidence weighting."
+        field: accDeviationMg
+        min: 10
+        max: 16000
+        default_value: 300
+      - name: multi_baro_deviation
+        description: "Barometer temporal/disagreement threshold in Pa for confidence weighting."
+        field: baroDeviationPa
+        min: 1
+        max: 10000
+        default_value: 100
+      - name: multi_sensor_recovery_ms
+        description: "Confidence recovery time constant after consistent measurements resume, in milliseconds."
+        field: recoveryMs
+        min: 100
+        max: 60000
+        default_value: 5000
+      - name: multi_imu_max_age_ms
+        description: "Maximum age of a usable IMU sample in milliseconds."
+        field: imuMaxAgeMs
+        min: 1
+        max: 100
+        default_value: 10
+      - name: multi_baro_max_age_ms
+        description: "Maximum age of a usable barometer sample in milliseconds."
+        field: baroMaxAgeMs
+        min: 20
+        max: 1000
+        default_value: 200
+      - name: multi_acc_calibrated_mask
+        description: "Bit mask of calibrated physical IMU tags (0..2). Set by six-position calibration."
+        field: accCalibratedMask
+        min: 0
+        max: 7
+        default_value: 0
+      - name: multi_acc_zero_first_x
+        description: "IMU tag 0 body-axis X accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[0][0]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_first_x
+        description: "IMU tag 0 body-axis X accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[0][0]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_first_y
+        description: "IMU tag 0 body-axis Y accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[0][1]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_first_y
+        description: "IMU tag 0 body-axis Y accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[0][1]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_first_z
+        description: "IMU tag 0 body-axis Z accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[0][2]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_first_z
+        description: "IMU tag 0 body-axis Z accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[0][2]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_second_x
+        description: "IMU tag 1 body-axis X accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[1][0]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_second_x
+        description: "IMU tag 1 body-axis X accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[1][0]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_second_y
+        description: "IMU tag 1 body-axis Y accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[1][1]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_second_y
+        description: "IMU tag 1 body-axis Y accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[1][1]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_second_z
+        description: "IMU tag 1 body-axis Z accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[1][2]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_second_z
+        description: "IMU tag 1 body-axis Z accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[1][2]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_third_x
+        description: "IMU tag 2 body-axis X accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[2][0]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_third_x
+        description: "IMU tag 2 body-axis X accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[2][0]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_third_y
+        description: "IMU tag 2 body-axis Y accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[2][1]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_third_y
+        description: "IMU tag 2 body-axis Y accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[2][1]
+        min: 2048
+        max: 8192
+        default_value: 4096
+      - name: multi_acc_zero_third_z
+        description: "IMU tag 2 body-axis Z accelerometer zero, in 1/4096 g units (gain 4096 = unity)."
+        field: accZero[2][2]
+        min: -2048
+        max: 2048
+        default_value: 0
+      - name: multi_acc_gain_third_z
+        description: "IMU tag 2 body-axis Z accelerometer gain, in 1/4096 g units (gain 4096 = unity)."
+        field: accGain[2][2]
+        min: 2048
+        max: 8192
+        default_value: 4096
   - name: PG_GYRO_CONFIG
     type: gyroConfig_t
     headers: ["sensors/gyro.h"]
