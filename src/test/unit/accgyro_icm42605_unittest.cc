@@ -24,6 +24,8 @@ uint8_t banks[2];
 uint32_t scratch[2][(BUS_SCRATCHPAD_MEMORY_SIZE + 3) / 4];
 bool available[2];
 int failedReadRegister;
+int failedWriteRegister;
+bool poweredWithInterrupts;
 unsigned deinitCount;
 unsigned indexOf(const busDevice_t *dev) { return dev - devices; }
 }
@@ -45,6 +47,8 @@ void busSetSpeed(const busDevice_t *dev, busSpeed_e speed) { UNUSED(dev); UNUSED
 bool busWrite(const busDevice_t *dev, uint8_t reg, uint8_t value)
 {
     const unsigned index = indexOf(dev);
+    if (reg == failedWriteRegister) { return false; }
+    if (reg == 0x4e && value == 0x0f && registers[index][0][0x65] != 0) { poweredWithInterrupts = true; }
     if (reg == 0x76) {
         banks[index] = value;
     } else {
@@ -81,7 +85,8 @@ protected:
         memset(gyros, 0, sizeof(gyros));
         memset(accels, 0, sizeof(accels));
         available[0] = available[1] = true;
-        failedReadRegister = -1;
+        failedReadRegister = failedWriteRegister = -1;
+        poweredWithInterrupts = false;
         deinitCount = 0;
         for (unsigned i = 0; i < 2; i++) {
             gyros[i].imuSensorToUse = accels[i].imuSensorToUse = i;
@@ -107,6 +112,7 @@ TEST_F(Icm426xxBusTest, ExistingIdentitiesKeepFullScaleOdrAndAafSettings)
         EXPECT_EQ(registers[0][0][0x4f], i == 1 ? 0x26 : 0x06);
         EXPECT_EQ(registers[0][0][0x50], i == 1 ? 0x26 : 0x06);
         EXPECT_EQ(registers[0][0][0x52], 0xff);
+        EXPECT_EQ(registers[0][0][0x65], 0x08);
         EXPECT_EQ(registers[0][1][0x0c], i == 0 ? 21 : 6);
         EXPECT_EQ(registers[0][2][0x03], i == 0 ? 42 : 12);
         EXPECT_EQ(banks[0], 0);
@@ -189,4 +195,30 @@ TEST_F(Icm426xxBusTest, MissingBusWrongIdentityAndUnpairedAccelAreRejected)
     EXPECT_FALSE(icm42605AccDetect(&accels[0]));
     EXPECT_FALSE(icm42605GyroDetect(&gyros[0]));
     EXPECT_EQ(deinitCount, 1u);
+}
+
+TEST_F(Icm426xxBusTest, PollingModeDisablesSharedInterruptBeforePoweringUp) {
+    registers[0][0][MPU_RA_WHO_AM_I] = ICM42688P_WHO_AM_I_CONST;
+    registers[0][0][0x65] = 0x08;
+    ASSERT_TRUE(icm42605GyroDetect(&gyros[0]));
+    gyros[0].pollingOnly = true;
+    gyros[0].initFn(&gyros[0]);
+    EXPECT_EQ(registers[0][0][0x65],0);
+    EXPECT_FALSE(poweredWithInterrupts);
+    EXPECT_NE(gyros[0].sampleRateIntervalUs,0u);
+}
+TEST_F(Icm426xxBusTest, PollingInitializationFailureDoesNotWakeSensor) {
+    registers[0][0][MPU_RA_WHO_AM_I] = ICM42688P_WHO_AM_I_CONST;
+    ASSERT_TRUE(icm42605GyroDetect(&gyros[0]));
+    gyros[0].pollingOnly = true;
+    failedWriteRegister = 0x65;
+    gyros[0].initFn(&gyros[0]);
+    EXPECT_EQ(gyros[0].sampleRateIntervalUs,0u);
+    EXPECT_EQ(registers[0][0][0x4e],0);
+}
+TEST_F(Icm426xxBusTest, IdentityNackCannotUseAStaleOrUninitializedIdentityByte) {
+    registers[0][0][MPU_RA_WHO_AM_I] = ICM42688P_WHO_AM_I_CONST;
+    failedReadRegister = MPU_RA_WHO_AM_I;
+    EXPECT_FALSE(icm42605GyroDetect(&gyros[0]));
+    EXPECT_EQ(deinitCount,1u);
 }

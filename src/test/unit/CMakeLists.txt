@@ -6,11 +6,15 @@ set(MAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/main")
 
 set_property(SOURCE accgyro_icm42605_unittest.cc PROPERTY depends
     "drivers/accgyro/accgyro_icm42605.c" "drivers/accgyro/accgyro.c")
-set_property(SOURCE accgyro_icm42605_unittest.cc PROPERTY definitions USE_IMU_ICM42605)
+set_property(SOURCE accgyro_icm42605_unittest.cc PROPERTY definitions USE_IMU_ICM42605 USE_MULTI_SENSOR)
 
 set_property(SOURCE accgyro_lsm6dxx_unittest.cc PROPERTY depends
     "drivers/accgyro/accgyro_lsm6dxx.c")
 set_property(SOURCE accgyro_lsm6dxx_unittest.cc PROPERTY definitions USE_IMU_LSM6DXX)
+
+set_property(SOURCE accgyro_mpu6500_bus_unittest.cc PROPERTY depends
+    "drivers/accgyro/accgyro_mpu6500.c" "drivers/accgyro/accgyro_mpu.c" "drivers/accgyro/accgyro.c")
+set_property(SOURCE accgyro_mpu6500_bus_unittest.cc PROPERTY definitions USE_IMU_MPU6500 USE_MULTI_SENSOR)
 
 set_property(SOURCE adsb_unittest.cc PROPERTY depends "io/adsb.c" "common/maths.c")
 
@@ -25,6 +29,9 @@ set_property(SOURCE alignsensor_unittest.cc PROPERTY depends
 set_property(SOURCE barometer_compass_bus_unittest.cc PROPERTY depends
     "drivers/barometer/barometer_bmp388.c" "drivers/compass/compass_lis3mdl.c")
 set_property(SOURCE barometer_compass_bus_unittest.cc PROPERTY definitions USE_BARO_BMP388 USE_MAG_LIS3MDL)
+
+set_property(SOURCE barometer_ms56xx_bus_unittest.cc PROPERTY depends "drivers/barometer/barometer_ms56xx.c")
+set_property(SOURCE barometer_ms56xx_bus_unittest.cc PROPERTY definitions USE_BARO_MS5611)
 
 set_property(SOURCE battery_ina226_unittest.cc PROPERTY depends
     "sensors/battery.c" "drivers/ina226.c" "common/filter.c" "common/lulu.c" "common/maths.c")
@@ -41,6 +48,20 @@ set_property(SOURCE flight_imu_unittest.cc PROPERTY depends     "build/debug.c"
     "drivers/accgyro/accgyro_fake.c" "flight/imu.c" "sensors/boardalignment.c"
     "sensors/gyro.c")
 
+set_property(SOURCE multi_acc_unittest.cc PROPERTY depends
+    "sensors/multi_acc.c" "sensors/acceleration.c" "sensors/multi_sensor.c" "common/sensor_fusion.c" "common/calibration.c"
+    "common/maths.c" "common/filter.c" "common/lulu.c" "sensors/boardalignment.c" "build/debug.c")
+set_property(SOURCE multi_acc_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
+
+set_property(SOURCE multi_baro_unittest.cc PROPERTY depends
+    "sensors/barometer.c" "sensors/multi_sensor.c" "common/sensor_fusion.c" "common/calibration.c" "common/maths.c" "config/parameter_group.c")
+set_property(SOURCE multi_baro_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_BARO_MS5611 USE_BARO_SPL06)
+
+set_property(SOURCE multi_gyro_unittest.cc PROPERTY depends
+    "sensors/gyro.c" "sensors/multi_sensor.c" "common/sensor_fusion.c" "common/calibration.c"
+    "common/maths.c" "common/filter.c" "common/lulu.c" "sensors/boardalignment.c" "build/debug.c")
+set_property(SOURCE multi_gyro_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
+
 set_property(SOURCE maths_unittest.cc PROPERTY depends "common/maths.c")
 
 set_property(SOURCE navigation_fixedwing_turn_math_unittest.cc PROPERTY depends
@@ -52,6 +73,8 @@ set_property(SOURCE rcdevice_unittest.cc PROPERTY definitions USE_RCDEVICE)
 set_property(SOURCE rcdevice_unittest.cc PROPERTY depends
     "common/bitarray.c" "common/crc.c" "io/rcdevice.c" "io/rcdevice_cam.c"
     "fc/rc_modes.c" "common/maths.c")
+
+set_property(SOURCE sensor_fusion_unittest.cc PROPERTY depends "common/sensor_fusion.c")
 
 set_property(SOURCE sensor_gyro_unittest.cc PROPERTY depends
     "build/debug.c" "common/maths.c" "common/calibration.c" "common/filter.c"
