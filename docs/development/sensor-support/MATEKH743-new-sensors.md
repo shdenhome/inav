@@ -1,11 +1,13 @@
-# MATEKH743: IIM-42652 and ICP20100 support work
+# MATEKH743: ICM-42688 and ICP20100 support work
 
-Status: investigation and baseline tests only. New sensor support is **not implemented**.
+Status: investigation and baseline tests only. ICM42688P is already supported by the
+existing driver; ICP20100 support and the requested hardware configuration are
+**not implemented or hardware-verified**.
 Do not flash an existing MATEKH743 build expecting these new sensors to work.
 
 ## Scope and agreed interface change
 
-Requested: two IIM-42652 IMUs, an ICP20100 barometer, and verification of the existing
+Requested (corrected by the user): two ICM-42688 IMUs, an ICP20100 barometer, and verification of the existing
 BMP388 and LIS3MDL support in the custom INAV 10 firmware.
 
 The user confirmed MATEKH743 as the target and approved appending ICP20100 to the
@@ -15,14 +17,18 @@ working driver is registered; do not expose a nonfunctional selection before the
 No parameter-group layout change is necessary for an additional enum value.
 
 Base commit: 054f26577100e6fdc76c8078f5c1c7d0b21fdb7b.
-Branch: codex/iim42652-icp20100.
+Branch: codex/iim42652-icp20100 (created before the sensor-name correction).
 
 ## Existing architecture
 
-- `accgyro_icm42605.c` handles ICM42605, ICM42686P and ICM42688P. Identification,
-  register layout, ranges, sample rates and the AAF table must all be verified
-  against IIM-42652 documentation before reusing it. Accepting another WHO_AM_I
-  byte alone is not evidence of compatibility.
+- `accgyro_icm42605.c` already handles ICM42688P (WHO_AM_I 0x47), including
+  ranges, sample rates and its AAF table. The corrected request no longer requires
+  adding an IIM-42652 identity or a driver for that part. Confirm the exact chip
+  suffix/revision before claiming compatibility with another variant.
+- MATEKH743 already registers the ICM426xx family at tag 0 (SPI1, CS PC15) and
+  tag 2 (SPI4, CS PC13). These descriptors can discover ICM42688P with the existing
+  driver if the physical wiring and orientation match. This does not establish
+  which two chips are installed on the user's board.
 - `gyro_to_use` selects the active hardware descriptor tag. The accelerometer
   follows that IMU. `gyro_secondary_enabled` permits acquisition of another gyro
   for logging; it is not automatic failover or simultaneous attitude fusion.
@@ -55,10 +61,13 @@ Still required:
 
 1. Exact board model/revision and whether the new IMUs replace onboard chips or
    are external modules.
-2. SPI number, CS pin and mounting orientation of each IIM-42652; INT pin if wired.
+2. SPI number, CS pin and mounting orientation of each ICM-42688; INT pin if wired.
 3. Bus and physical address of ICP20100, BMP388 and LIS3MDL.
-4. Accessible manufacturer documentation for IIM-42652 and ICP20100, including
+4. Accessible manufacturer documentation for ICP20100 and the exact ICM-42688 variant, including
    revision-specific initialization/OTP requirements.
+
+The user supplied the signal label `spi1_int`. Its physical GPIO, device association
+and CS connection remain unspecified; an INT label is not a chip-select assignment.
 
 No target pins, addresses or orientation were guessed. The target shared with
 MATEKH743HD has not been modified.
