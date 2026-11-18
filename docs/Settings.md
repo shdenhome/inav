@@ -3629,6 +3629,276 @@ Mask of RX channels that may be overridden by MSP `SET_RAW_RC`. Note that this r
 
 ---
 
+### multi_acc_calibrated_mask
+
+Bit mask of calibrated physical IMU tags (0..2). Set by six-position calibration.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | 0 | 7 |
+
+---
+
+### multi_acc_deviation
+
+Accelerometer disagreement threshold in milli-g for confidence weighting.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 300 | 10 | 16000 |
+
+---
+
+### multi_acc_gain_first_x
+
+IMU tag 0 body-axis X accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_first_y
+
+IMU tag 0 body-axis Y accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_first_z
+
+IMU tag 0 body-axis Z accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_second_x
+
+IMU tag 1 body-axis X accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_second_y
+
+IMU tag 1 body-axis Y accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_second_z
+
+IMU tag 1 body-axis Z accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_third_x
+
+IMU tag 2 body-axis X accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_third_y
+
+IMU tag 2 body-axis Y accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_gain_third_z
+
+IMU tag 2 body-axis Z accelerometer gain, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 4096 | 2048 | 8192 |
+
+---
+
+### multi_acc_zero_first_x
+
+IMU tag 0 body-axis X accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_first_y
+
+IMU tag 0 body-axis Y accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_first_z
+
+IMU tag 0 body-axis Z accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_second_x
+
+IMU tag 1 body-axis X accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_second_y
+
+IMU tag 1 body-axis Y accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_second_z
+
+IMU tag 1 body-axis Z accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_third_x
+
+IMU tag 2 body-axis X accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_third_y
+
+IMU tag 2 body-axis Y accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_acc_zero_third_z
+
+IMU tag 2 body-axis Z accelerometer zero, in 1/4096 g units (gain 4096 = unity).
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 0 | -2048 | 2048 |
+
+---
+
+### multi_baro_deviation
+
+Barometer temporal/disagreement threshold in Pa for confidence weighting.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 100 | 1 | 10000 |
+
+---
+
+### multi_baro_enabled
+
+Read MS5611 and SPL06 concurrently and confidence-weight pressure. Reboot required.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| OFF | OFF | ON |
+
+---
+
+### multi_baro_max_age_ms
+
+Maximum age of a usable barometer sample in milliseconds.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 200 | 20 | 1000 |
+
+---
+
+### multi_gyro_deviation
+
+Gyroscope disagreement threshold in deg/s for confidence weighting.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 100 | 1 | 2000 |
+
+---
+
+### multi_imu_enabled
+
+Read and confidence-weight all three onboard IMUs. Requires fresh six-position accelerometer calibration. Reboot required.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| OFF | OFF | ON |
+
+---
+
+### multi_imu_max_age_ms
+
+Maximum age of a usable IMU sample in milliseconds.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 10 | 1 | 100 |
+
+---
+
+### multi_sensor_recovery_ms
+
+Confidence recovery time constant after consistent measurements resume, in milliseconds.
+
+| Default | Min | Max |
+| --- | --- | --- |
+| 5000 | 100 | 60000 |
+
+---
+
 ### name
 
 Craft name
