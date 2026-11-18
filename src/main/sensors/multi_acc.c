@@ -101,6 +101,29 @@ static int orientation(const float vector[3])
     return -1;
 }
 
+bool multiAccGetCalibrationStatus(unsigned slot, multiAccCalibrationStatus_t *status)
+{
+    if (slot >= MULTI_IMU_COUNT || !status) {
+        return false;
+    }
+    memset(status, 0, sizeof(*status));
+    status->detected = detected[slot];
+    status->readValid = detected[slot] && rawValid[slot] &&
+        (uint32_t)(micros() - rawAt[slot]) <= (uint32_t)multiSensorConfig()->imuMaxAgeMs * 1000;
+    status->collecting = collecting;
+    status->orientation = status->readValid ? orientation(raw[slot]) : -1;
+    status->collectingFace = collecting ? calibrationFace : -1;
+    for (unsigned face = 0; face < 6; face++) {
+        if (detected[slot] && faceValid[slot][face]) {
+            status->completedFaces |= 1u << face;
+        }
+    }
+    for (unsigned axis = 0; axis < 3; axis++) {
+        status->uncalibratedG[axis] = raw[slot][axis] / 4096.0f;
+    }
+    return true;
+}
+
 void multiAccStartCalibration(void)
 {
     if (collecting) {

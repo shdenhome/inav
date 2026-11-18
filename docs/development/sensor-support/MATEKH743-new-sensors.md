@@ -194,6 +194,25 @@ aggregate contributor counts/health and learned barometer datum offsets. Legacy 
 A missing device must be distinguished from a low-confidence or stale device using
 these fields; the existing single sensor-type label is insufficient.
 
+For stalled six-face calibration, `status` also prints `acc calibration` and
+`acc uncalibrated g` for each slot, even before a saved calibration exists.
+`detected` identifies an opened accelerometer; `read` indicates a fresh successful
+read independently of calibration/fusion eligibility. `face` is the current dominant
+axis after descriptor alignment: 0=+Z, 1=-Z, 2=+X, 3=-X, 4=+Y, 5=-Y, -1=ambiguous
+or unavailable. `faces` is the mask of completed positions for that device in the
+current calibration session (not the Configurator's remapped face flags).
+`collecting`/`target` describe the active sampling window. Retained raw vectors
+must not be interpreted as fresh when `read=0`.
+
+If horizontal calibration succeeds but a side is rejected, compare all three
+`face` values and uncalibrated vectors while the board is stationary on that side.
+A yaw alignment mismatch can leave +Z unchanged yet turn +X into +Y. This
+mechanism is covered by a regression test; it is not confirmation of the actual
+orientation of a user's board. Do not bypass the agreement check or manually set
+`multi_acc_calibrated_mask` to conceal a mismatch. The diagnostic change passes
+12 MultiAcc tests and the MATEKH743HD ARM syntax checks; hardware diagnosis remains
+pending. No new firmware artifact was built for this diagnostic-only change.
+
 ## Software verification
 
 Focused tests execute production fusion, gyro/acceleration processing, barometer

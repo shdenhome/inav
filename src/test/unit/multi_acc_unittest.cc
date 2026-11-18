@@ -17,6 +17,7 @@ extern "C" {
 namespace {
 uint32_t clockUs;
 bool present[3], ack[3], frozen[3];
+bool thirdYawMismatch;
 uint32_t frozenAt[3];
 uint8_t tagOrder[3];
 float pose[3], spike[3];
@@ -47,6 +48,11 @@ static bool readFake(accDev_t *dev) {
     for (unsigned axis=0;axis<3;axis++) {
         body[axis]=(pose[axis]*4096/gain[tag][axis]+bias[tag][axis]+spike[tag])*dev->acc_1G/4096;
     }
+    if (tag == 2 && thirdYawMismatch) {
+        const float x = body[0];
+        body[0] = -body[1];
+        body[1] = x;
+    }
     if (tag==2) {
         dev->ADCRaw[0]=body[1]; dev->ADCRaw[1]=body[0]; dev->ADCRaw[2]=-body[2];
     } else {
@@ -72,6 +78,7 @@ protected:
         clockUs=1000; saved=0; stateFlags=armingFlags=0;
         memset(pose,0,sizeof(pose)); memset(spike,0,sizeof(spike));
         memset(frozen,0,sizeof(frozen));
+        thirdYawMismatch = false;
         pose[2]=1;
         for (unsigned i=0;i<3;i++) { present[i]=ack[i]=true; tagOrder[i]=i; }
         *multiSensorConfigMutable()=pgResetTemplate_multiSensorConfig;
@@ -167,4 +174,61 @@ TEST_F(MultiAccTest, SavedCalibrationFollowsPhysicalTagWhenPrimarySlotChanges) {
     for (unsigned i=0;i<10;i++) { clockUs+=1000; accUpdate(); }
     ASSERT_TRUE(accIsHealthy());
     for (unsigned axis=0;axis<3;axis++) EXPECT_NEAR(acc.accADCf[axis],pose[axis],0.001);
+}
+
+TEST_F(MultiAccTest, CalibrationDiagnosticsExposeReadingsBeforeCalibrationAndCompletedFaces) {
+    run(5);
+    multiAccCalibrationStatus_t status;
+    ASSERT_TRUE(multiAccGetCalibrationStatus(2, &status));
+    EXPECT_TRUE(status.detected);
+    EXPECT_TRUE(status.readValid);
+    EXPECT_EQ(status.orientation, 0);
+    EXPECT_EQ(status.completedFaces, 0);
+    EXPECT_FALSE(status.collecting);
+    EXPECT_EQ(status.collectingFace, -1);
+    EXPECT_NEAR(status.uncalibratedG[2], 1 / gain[2][2] + bias[2][2] / 4096, 0.001);
+    EXPECT_FALSE(multiAccSamples[2].valid);
+    multiAccStartCalibration();
+    ASSERT_TRUE(multiAccGetCalibrationStatus(2, &status));
+    EXPECT_TRUE(status.collecting);
+    EXPECT_EQ(status.collectingFace, 0);
+    run(510);
+    ASSERT_TRUE(multiAccGetCalibrationStatus(2, &status));
+    EXPECT_FALSE(status.collecting);
+    EXPECT_EQ(status.completedFaces, 1);
+    EXPECT_FALSE(multiAccCalibrationValid());
+}
+
+TEST_F(MultiAccTest, CalibrationDiagnosticsDistinguishStaleReadingsFromMissingCalibration) {
+    run(5);
+    clockUs += 20000;
+    multiAccCalibrationStatus_t status;
+    ASSERT_TRUE(multiAccGetCalibrationStatus(0, &status));
+    EXPECT_TRUE(status.detected);
+    EXPECT_FALSE(status.readValid);
+    EXPECT_EQ(status.orientation, -1);
+    EXPECT_FALSE(multiAccGetCalibrationStatus(3, &status));
+    EXPECT_FALSE(multiAccGetCalibrationStatus(0, nullptr));
+}
+
+TEST_F(MultiAccTest, CalibrationDiagnosticsIdentifyConflictingSideOrientations) {
+    thirdYawMismatch = true;
+    run(5);
+    multiAccStartCalibration();
+    EXPECT_FALSE(multiAccCalibrationComplete());
+    run(510);
+    EXPECT_TRUE(multiAccCalibrationComplete());
+    memset(pose, 0, sizeof(pose));
+    pose[0] = 1;
+    run(5);
+    multiAccCalibrationStatus_t first, third;
+    ASSERT_TRUE(multiAccGetCalibrationStatus(0, &first));
+    ASSERT_TRUE(multiAccGetCalibrationStatus(2, &third));
+    EXPECT_EQ(first.orientation, 2);
+    EXPECT_EQ(third.orientation, 4);
+    EXPECT_EQ(first.completedFaces, 1);
+    EXPECT_EQ(third.completedFaces, 1);
+    multiAccStartCalibration();
+    EXPECT_TRUE(multiAccCalibrationComplete());
+    EXPECT_EQ(saved, 0u);
 }

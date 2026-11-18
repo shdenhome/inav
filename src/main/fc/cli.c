@@ -121,6 +121,7 @@ bool cliMode = false;
 #include "sensors/diagnostics.h"
 #include "sensors/gyro.h"
 #include "sensors/multi_sensor.h"
+#include "sensors/multi_acc.h"
 #include "sensors/pitotmeter.h"
 #include "sensors/rangefinder.h"
 #include "sensors/opflow.h"
@@ -4301,6 +4302,15 @@ static void cliStatus(char *cmdline)
             if (a->valid) {
                 char x[18], y[18], z[18];
                 cliPrintLinef("    acc g: %s %s %s", ftoa(a->value[0], x), ftoa(a->value[1], y), ftoa(a->value[2], z));
+            }
+            multiAccCalibrationStatus_t accStatus;
+            if (multiAccGetCalibrationStatus(i, &accStatus)) {
+                char x[18], y[18], z[18];
+                cliPrintLinef("    acc calibration: detected=%u read=%u face=%d faces=0x%02x collecting=%u target=%d",
+                    accStatus.detected, accStatus.readValid, accStatus.orientation, accStatus.completedFaces,
+                    accStatus.collecting, accStatus.collectingFace);
+                cliPrintLinef("    acc uncalibrated g: %s %s %s",
+                    ftoa(accStatus.uncalibratedG[0], x), ftoa(accStatus.uncalibratedG[1], y), ftoa(accStatus.uncalibratedG[2], z));
             }
         }
     }
