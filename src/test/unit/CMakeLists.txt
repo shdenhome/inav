@@ -4,6 +4,10 @@ set(MAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/main")
 
 # Keep these alphabetically sorted by test name
 
+set_property(SOURCE accgyro_icm42605_unittest.cc PROPERTY depends
+    "drivers/accgyro/accgyro_icm42605.c" "drivers/accgyro/accgyro.c")
+set_property(SOURCE accgyro_icm42605_unittest.cc PROPERTY definitions USE_IMU_ICM42605)
+
 set_property(SOURCE accgyro_lsm6dxx_unittest.cc PROPERTY depends
     "drivers/accgyro/accgyro_lsm6dxx.c")
 set_property(SOURCE accgyro_lsm6dxx_unittest.cc PROPERTY definitions USE_IMU_LSM6DXX)
@@ -17,6 +21,10 @@ set_property(SOURCE adsb_unittest.cc PROPERTY extra_includes "../../lib/main/MAV
 
 set_property(SOURCE alignsensor_unittest.cc PROPERTY depends
     "common/maths.c" "sensors/boardalignment.c")
+
+set_property(SOURCE barometer_compass_bus_unittest.cc PROPERTY depends
+    "drivers/barometer/barometer_bmp388.c" "drivers/compass/compass_lis3mdl.c")
+set_property(SOURCE barometer_compass_bus_unittest.cc PROPERTY definitions USE_BARO_BMP388 USE_MAG_LIS3MDL)
 
 set_property(SOURCE battery_ina226_unittest.cc PROPERTY depends
     "sensors/battery.c" "drivers/ina226.c" "common/filter.c" "common/lulu.c" "common/maths.c")
@@ -275,3 +283,6 @@ foreach(source ${TEST_PROGRAMS})
 endforeach()
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} DEPENDS ${test_targets})
+
+# The embedded platform supplies NULL transitively; the host mock platform does not.
+target_compile_options(barometer_compass_bus_unittest PRIVATE -include stddef.h)
