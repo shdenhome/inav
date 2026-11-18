@@ -16,12 +16,14 @@ hardware target for this feature.
 | Physical tag | IMU | Bus | Existing target CS | Sensor alignment |
 | --- | --- | --- | --- | --- |
 | 0 | ICM-42688-P | SPI1 | PC15 | CW0_DEG_FLIP |
-| 1 | ICM-20602 | SPI4 | PE11 | CW0_DEG_FLIP |
+| 1 | ICM-20602 | SPI4 | PE11 | CW270_DEG_FLIP |
 | 2 | ICM-42688-P | SPI4 | PC13 | CW90_DEG_FLIP |
 
 These are existing target assignments. The supplied sensor-side schematics show
 SPI1_IMU1_CS, SPI4_IMU2_CS and SPI4_IMU3_CS, but do not independently show their MCU
-GPIO connections. No pins or orientation constants were changed. The two SPI4 IMUs share SPI4_INT.
+GPIO connections. No pins were changed. IMU1's alignment is corrected only for
+MATEKH743HD using the reported side-position measurements (see Diagnostics below);
+the standard MATEKH743 retains CW0_DEG_FLIP. The two SPI4 IMUs share SPI4_INT.
 Multi mode therefore sets a per-device polling-only flag: ICM426xx DRDY mapping is
 disabled before gyro wake and not re-enabled; MPU6500-family INT_ENABLE is explicitly
 cleared before wake. A failure to perform this step marks initialization failed and
@@ -206,12 +208,22 @@ must not be interpreted as fresh when `read=0`.
 
 If horizontal calibration succeeds but a side is rejected, compare all three
 `face` values and uncalibrated vectors while the board is stationary on that side.
-A yaw alignment mismatch can leave +Z unchanged yet turn +X into +Y. This
-mechanism is covered by a regression test; it is not confirmation of the actual
-orientation of a user's board. Do not bypass the agreement check or manually set
-`multi_acc_calibrated_mask` to conceal a mismatch. The diagnostic change passes
-12 MultiAcc tests and the MATEKH743HD ARM syntax checks; hardware diagnosis remains
-pending. No new firmware artifact was built for this diagnostic-only change.
+A yaw alignment mismatch can leave +Z unchanged yet turn +X into +Y. The supplied
+diagnostic output confirmed IMU0/2 near (0,+1,0) while IMU1 was
+(+1.009,-0.022,+0.009) under CW0_DEG_FLIP, with all devices having completed the
+two vertical faces (faces=0x03). MATEKH743HD IMU1 therefore uses CW270_DEG_FLIP:
+the relative transform is new=(-oldY,oldX,oldZ), giving
+(+0.022,+1.009,+0.009) for that measured side. Both drivers use the shared bus
+descriptor, so this correction applies to gyro and acceleration together.
+The original six-face gate is retained: weakening it would admit differently
+oriented vectors to the fusion algorithm. Do not manually set
+`multi_acc_calibrated_mask` to conceal a mismatch.
+
+The alignment update passes 13 MultiAcc tests, including all six positions with
+the IMU1 mounting and the reported side vector, plus ARM syntax checks for HD
+and standard variants. Successful calibration and dynamic gyro-axis agreement
+on the real board still need to be verified after this update. Re-run all six
+positions starting top-up, even if calibration coefficients were previously saved.
 
 ## Software verification
 

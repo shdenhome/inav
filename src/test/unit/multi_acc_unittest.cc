@@ -55,6 +55,8 @@ static bool readFake(accDev_t *dev) {
     }
     if (tag==2) {
         dev->ADCRaw[0]=body[1]; dev->ADCRaw[1]=body[0]; dev->ADCRaw[2]=-body[2];
+    } else if (tag==1) {
+        dev->ADCRaw[0]=-body[1]; dev->ADCRaw[1]=-body[0]; dev->ADCRaw[2]=-body[2];
     } else {
         dev->ADCRaw[0]=-body[0]; dev->ADCRaw[1]=body[1]; dev->ADCRaw[2]=-body[2];
     }
@@ -64,7 +66,7 @@ static bool detect(accDev_t *dev, bool icm) {
     const unsigned tag=dev->imuSensorToUse;
     if (tag>=3 || !present[tag] || ((tag!=1)!=icm)) return false;
     dev->initFn=initFake; dev->readFn=readFake;
-    dev->accAlign=tag==2 ? CW90_DEG_FLIP : CW0_DEG_FLIP;
+    dev->accAlign=tag==2 ? CW90_DEG_FLIP : tag==1 ? CW270_DEG_FLIP : CW0_DEG_FLIP;
     return true;
 }
 bool fakeAccDetect(accDev_t *dev) { return detect(dev,dev->imuSensorToUse!=1); }
@@ -231,4 +233,22 @@ TEST_F(MultiAccTest, CalibrationDiagnosticsIdentifyConflictingSideOrientations) 
     multiAccStartCalibration();
     EXPECT_TRUE(multiAccCalibrationComplete());
     EXPECT_EQ(saved, 0u);
+}
+
+TEST_F(MultiAccTest, CorrectedImu1AlignmentMatchesReportedSideWithoutChangingVerticalAxis) {
+    // Reported body vector with the old CW0_DEG_FLIP was (1.009,-0.022,0.009).
+    // Recover the native chip vector and use the corrected descriptor rotation.
+    float chip[3] = {-1.009f, -0.022f, -0.009f};
+    float body[3];
+    applySensorAlignment(body, chip, CW270_DEG_FLIP);
+    EXPECT_FLOAT_EQ(body[0], 0.022f);
+    EXPECT_FLOAT_EQ(body[1], 1.009f);
+    EXPECT_FLOAT_EQ(body[2], 0.009f);
+    for (int sign : {-1, 1}) {
+        float vertical[3] = {0, 0, static_cast<float>(-sign)};
+        applySensorAlignment(body, vertical, CW270_DEG_FLIP);
+        EXPECT_FLOAT_EQ(body[2], sign);
+        EXPECT_FLOAT_EQ(body[0], 0);
+        EXPECT_FLOAT_EQ(body[1], 0);
+    }
 }

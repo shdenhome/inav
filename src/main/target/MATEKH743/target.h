@@ -65,7 +65,13 @@
 
 #define USE_IMU_MPU6500
 
+#if defined(MATEKH743HD)
+// IMU1's X/Y axes are rotated relative to IMU0/IMU2 on this board.
+// Apply the same bus-descriptor alignment to both gyro and accelerometer.
+#define IMU_MPU6500_ALIGN       CW270_DEG_FLIP
+#else
 #define IMU_MPU6500_ALIGN       CW0_DEG_FLIP
+#endif
 #define MPU6500_SPI_BUS         BUS_SPI4
 #define MPU6500_CS_PIN          PE11
 
