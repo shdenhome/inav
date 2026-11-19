@@ -20,6 +20,7 @@
 
 static accDev_t devices[MULTI_IMU_COUNT];
 static bool detected[MULTI_IMU_COUNT];
+static uint8_t hardware[MULTI_IMU_COUNT];
 static bool gyroCached[MULTI_IMU_COUNT];
 static float raw[MULTI_IMU_COUNT][3];
 static uint32_t rawAt[MULTI_IMU_COUNT];
@@ -35,6 +36,7 @@ bool multiAccInit(void)
 {
     memset(devices, 0, sizeof(devices));
     memset(detected, 0, sizeof(detected));
+    memset(hardware, 0, sizeof(hardware));
     memset(gyroCached, 0, sizeof(gyroCached));
     memset(rawValid, 0, sizeof(rawValid));
     memset(faceValid, 0, sizeof(faceValid));
@@ -50,8 +52,10 @@ bool multiAccInit(void)
         devices[i].imuSensorToUse = tag;
         // Open the already detected gyro's bus context. Do not probe/reset its chip.
         detected[i] = icm42605AccDetect(&devices[i]);
+        hardware[i] = detected[i] ? ACC_ICM42605 : ACC_NONE;
         if (!detected[i]) {
             detected[i] = mpu6500AccDetect(&devices[i]);
+            hardware[i] = detected[i] ? ACC_MPU6500 : ACC_NONE;
             gyroCached[i] = detected[i];
         }
         if (detected[i]) {
@@ -60,6 +64,16 @@ bool multiAccInit(void)
         }
     }
     return activeTags != 0;
+}
+
+uint8_t multiAccGetHardware(unsigned tag)
+{
+    for (unsigned i = 0; i < MULTI_IMU_COUNT; i++) {
+        if (detected[i] && devices[i].imuSensorToUse == tag) {
+            return hardware[i];
+        }
+    }
+    return ACC_NONE;
 }
 
 bool multiAccCalibrationValid(void)

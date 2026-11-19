@@ -252,3 +252,18 @@ TEST_F(MultiAccTest, CorrectedImu1AlignmentMatchesReportedSideWithoutChangingVer
         EXPECT_FLOAT_EQ(body[1], 0);
     }
 }
+
+TEST_F(MultiAccTest, HardwareInventoryUsesPhysicalTagsAndPreservesDuplicateDriverTypes) {
+    EXPECT_EQ(multiAccGetHardware(0), ACC_ICM42605);
+    EXPECT_EQ(multiAccGetHardware(1), ACC_MPU6500);
+    EXPECT_EQ(multiAccGetHardware(2), ACC_ICM42605);
+    EXPECT_EQ(multiAccGetHardware(255), ACC_NONE);
+    tagOrder[0] = 2; tagOrder[1] = 0; tagOrder[2] = 1;
+    ASSERT_TRUE(multiAccInit());
+    EXPECT_EQ(multiAccGetHardware(0), ACC_ICM42605);
+    EXPECT_EQ(multiAccGetHardware(1), ACC_MPU6500);
+    present[1] = false;
+    ASSERT_TRUE(multiAccInit());
+    EXPECT_EQ(multiAccGetHardware(1), ACC_NONE);
+    EXPECT_EQ(multiAccGetHardware(2), ACC_ICM42605);
+}

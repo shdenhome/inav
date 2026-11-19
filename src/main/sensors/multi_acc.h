@@ -14,6 +14,7 @@ typedef struct multiAccCalibrationStatus_s {
 } multiAccCalibrationStatus_t;
 
 bool multiAccGetCalibrationStatus(unsigned slot, multiAccCalibrationStatus_t *status);
+uint8_t multiAccGetHardware(unsigned tag);
 bool multiAccInit(void);
 bool multiAccUpdate(float output[3]);
 void multiAccStartCalibration(void);

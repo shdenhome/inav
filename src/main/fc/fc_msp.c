@@ -133,6 +133,7 @@
 #include "sensors/rangefinder.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
+#include "sensors/multi_sensor_msp.h"
 #include "sensors/pitotmeter.h"
 #include "sensors/compass.h"
 #include "sensors/gyro.h"
@@ -1556,6 +1557,9 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         sbufWriteU8(dst, opticalFlowConfig()->opflow_hardware);
 #else
         sbufWriteU8(dst, 0);
+#endif
+#ifdef USE_MULTI_SENSOR
+        multiSensorSerializeInfo(dst);
 #endif
         break;
 

@@ -280,6 +280,14 @@ float baroGetPressureOffset(unsigned slot)
 }
 
 
+uint8_t baroGetSensorHardware(unsigned slot)
+{
+    if (slot >= MULTI_BARO_COUNT || !multiSensorBaroEnabled() || !multiBarometer[slot].detected) {
+        return BARO_NONE;
+    }
+    return slot == 0 ? BARO_MS5611 : BARO_SPL06;
+}
+
 static bool multiBaroInit(void)
 {
     memset(multiBarometer, 0, sizeof(multiBarometer));

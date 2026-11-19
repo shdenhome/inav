@@ -1,10 +1,12 @@
 # MATEKH743HD: three IMUs and two barometers with adaptive confidence
 
-Implementation status: code and software tests, **not hardware acceptance**.
-No flashable firmware or Configurator build has been produced for this change.
-Full target linking, memory usage and bench measurements remain pending an explicit
-build request. Scope is the existing onboard IMUs and MS5611/SPL06, not new sensor
-hardware IDs or third-party firmware libraries.
+The fusion core was built and tested on the user's MATEKH743HD with firmware
+ce1c8da: three healthy gyro and acceleration contributors, both barometers healthy,
+and six-face calibration completed after the IMU1 alignment correction. That build
+linked successfully (FLASH1 44.11%, main RAM 27.51%). This is limited bench evidence,
+not flight acceptance. The subsequent OSD-event and Configurator-inventory changes
+have software validation only; new product builds require the user's explicit
+request. Scope is existing IMUs and MS5611/SPL06, not new sensor hardware IDs.
 
 ## Confirmed hardware
 
@@ -33,8 +35,8 @@ verification; code/register tests do not validate the physical shared net.
 
 Both barometers use I2C2: **MS5611 at 0x77** and **SPL06 at 0x76**, according to the
 existing descriptors and supplied bus schematics. Physical jumper population must
-permit both addresses. The user confirmed this pair is populated; actual successful
-concurrent detection still needs to be verified on hardware. LIS3MDL remains on
+permit both addresses. The user confirmed successful concurrent detection and healthy
+fusion of this pair. LIS3MDL remains on
 I2C1, with its existing driver and address handling unchanged.
 
 ## Configuration and compatibility
@@ -60,7 +62,11 @@ The two enable flags are latched during initialization: changing a setting in CL
 cannot switch acquisition topology live. Save and reboot to enable/disable a mode.
 Thresholds are preliminary, configurable engineering defaults, not validated flight
 limits. Maximum age must exceed the physical sensor/conversion period; an overly
-short age intentionally makes that device unavailable. The Configurator has no new custom GUI controls; CLI is the current interface.
+short age intentionally makes that device unavailable. Configurator exposes the two enable settings in
+Configuration -> Other features as Multi accelerometer (Мульти акселерометр)
+and Multi barometer (Мульти барометр). The first switch controls both acceleration
+and gyroscopes. Apply with Save and Reboot, then calibrate accelerometers as
+explained in the help tips. Other thresholds and coefficients remain CLI settings.
 
 Example after explicitly requested firmware building and flashing:
 
@@ -89,7 +95,8 @@ rate. The path is raw sample -> individual zero -> sensor/board alignment -> deg
 -> confidence-weighted mean -> existing common gyro filters and attitude/PID path.
 The existing secondary Blackbox channel, if enabled, receives the calibrated second
 runtime slot; the aggregate is the normal gyro channel. Third-device values and all
-confidence values are available through CLI status, not new Blackbox/MSP fields.
+confidence values are available through CLI status, not new Blackbox or MSP trust
+telemetry fields. The optional Configurator inventory tail carries hardware IDs only.
 
 The ICM-20602 accelerometer consumes the gyro driver's shared register cache. Its
 sample retains the gyro transfer timestamp; repeated reads of that cache are not
@@ -221,9 +228,65 @@ oriented vectors to the fusion algorithm. Do not manually set
 
 The alignment update passes 13 MultiAcc tests, including all six positions with
 the IMU1 mounting and the reported side vector, plus ARM syntax checks for HD
-and standard variants. Successful calibration and dynamic gyro-axis agreement
-on the real board still need to be verified after this update. Re-run all six
-positions starting top-up, even if calibration coefficients were previously saved.
+and standard variants. The user subsequently confirmed all six faces (0x3f),
+ACC=OK and three healthy accelerometer contributors on ce1c8da. Dynamic gyro-axis
+agreement still needs explicit verification. Recalibrate all six positions
+after changing mounting/alignment, even if coefficients were previously saved.
+
+## OSD trust transition events
+
+System Messages shows IMU 1/2/3 TRUST LOST and IMU 1/2/3 TRUST RESTORED,
+or MS5611/SPL06 TRUST LOST/RESTORED. IMU numbers are physical tags plus one,
+independent of the selected primary or packed runtime slots. An IMU's effective
+trust is the lower of its gyro and calibrated accelerometer confidence; invalid,
+stale, missing readings and nonfinite confidence also count as low trust.
+Accelerometers awaiting calibration do not generate spurious loss events;
+intentional IMU calibration suspends monitoring. Never-initialized devices remain
+covered by existing hardware diagnostics, rather than invented transition events.
+
+Loss requires confidence below 0.25 (or invalid data) continuously for 1000 ms;
+restoration requires valid confidence at least 0.75 continuously for 1000 ms.
+These notification thresholds do not change fusion weights or its 0.1 quarantine
+threshold. Healthy startup establishes a baseline without a restored notification.
+Monitoring runs at up to 10 Hz from AUX, outside PID/gyro tasks. Arming/failsafe
+policy is unchanged.
+
+Events retain chronological order in a fixed 16-entry queue; overflow discards the
+oldest event. Each event receives approximately three accumulated seconds of actual
+message-selection time, rather than expiring while hidden by another warning.
+Disabling a source clears its events. The original eight regular-message slots
+are retained with one additional reserved event slot. Analog/DisplayPort System
+Messages and the existing DJI compatibility message/craft-name path include events,
+armed or disarmed. System Messages must be enabled in the active layout.
+
+## Configurator inventory and wire compatibility
+
+When the corresponding multi switch is on, Sensors and buses shows other detected
+accelerometer/barometer driver types in grey parentheses beside the label. Selecting
+ICM42605 with [ICM42605, MPU6500, ICM42605] leaves (MPU6500, ICM42605);
+selecting MPU6500 leaves (ICM42605, ICM42605). Only one matching physical device is
+removed; duplicates are retained. AUTO uses the actual primary descriptor. Missing
+devices are omitted. Names use the dropdown's driver-family enum table, so
+ICM-20602 is identified as MPU6500. Labels do not change acquisition behavior.
+
+MSP_SENSOR_CONFIG keeps its first six bytes. MATEKH743HD appends 11 optional bytes:
+6..7 ASCII MS; 8 version=1; 9 flags (bit0 IMU, bit1 barometer);
+10 primary physical IMU tag; 11..13 accelerometer enums per physical tag;
+14..15 MS5611/SPL06 enums per slot; 16 primary detected barometer enum.
+Zero means absent; counts are fixed by version 1. Old Configurators ignore the tail.
+The new parser ignores absent/truncated, unknown-marker and unknown-version tails
+and clears prior inventory. MSP IDs, enum values and configuration-write payloads
+are unchanged. Types are reported only for enabled/detected multi sources; legacy
+firmware does not show invented additional devices. New detection follows a saved
+mode change and reboot/reload.
+
+Follow-up validation: 116 focused/regression firmware tests pass; 54 cases covering
+trust transitions, OSD input mapping, metadata serialization, acceleration and
+barometers pass ASan/UBSan. Configurator passes all 395 tests, including optional
+MSP-tail parsing, legacy-reply reset and duplicate-type labels. ARM GCC syntax
+checks pass for changed modules including both OSD paths and the MSP handler,
+under MATEKH743HD and ordinary MATEKH743. These checks are not a firmware link
+or packaged Configurator build, and do not validate physical display behavior.
 
 ## Software verification
 
@@ -271,14 +334,15 @@ filter timing and latency still need the build/bench acceptance below.
 
 ## Remaining hardware/build acceptance
 
-- Explicitly requested complete target build, linker warnings and Flash/RAM usage.
-- Confirm all three physical IMUs and both barometers are actually detected.
-- Six-face calibration, reboot/storage, individual axis directions and common board
-  alignment on the real controller; inspect all confidence/status fields.
+- Complete build/link and Flash/RAM usage for the OSD/inventory follow-up when
+  explicitly requested; ce1c8da build, detection and six-face completion were confirmed.
+- Persisted calibration after cold boot, dynamic gyro-axis signs and board alignment.
+- OSD loss/restored events, rotation and grey inventory labels on hardware, including
+  disabled modes, absent devices and legacy firmware.
 - Compare individual and aggregate noise, latency, vibration and CPU/task load.
 - Bench verification of shared SPI4_INT electrical levels and fault injection/recovery,
   including either/both barometers, any/all IMUs,
   disconnected buses and data freezes. Software mocks do not prove these cases.
 - Check altitude continuity and estimator behavior as contributor weights change.
 - Long-duration operation and thermal testing. **-40 to +85 C is not validated.**
-- No hardware trials or flight-readiness claim is made by this change.
+- No flight-readiness claim is made by this change.

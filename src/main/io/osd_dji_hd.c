@@ -58,6 +58,7 @@
 #include "io/serial.h"
 #include "io/gps.h"
 #include "io/osd.h"
+#include "io/osd_sensor_trust.h"
 #include "io/osd_dji_hd.h"
 #include "io/osd_common.h"
 
@@ -998,13 +999,23 @@ static bool osdDJIFormatAdjustments(char *buff)
 static bool djiFormatMessages(char *buff)
 {
     bool haveMessage = false;
+#ifdef USE_MULTI_SENSOR
+    const char *trustMessage = osdSensorTrustMessage();
+    bool trustVisible = false;
+#endif
     char messageBuf[MAX(SETTING_MAX_NAME_LENGTH, OSD_MESSAGE_LENGTH+1)];
     if (ARMING_FLAG(ARMED)) {
         // Aircraft is armed. Keep this bounded because transition, navigation,
         // failsafe and normal status messages can be active at the same time.
+#ifdef USE_MULTI_SENSOR
+        const char *messages[9];
+        const unsigned regularMessageLimit = ARRAYLEN(messages) - 1;
+#else
         const char *messages[8];
+        const unsigned regularMessageLimit = ARRAYLEN(messages);
+#endif
         unsigned messageCount = 0;
-        #define ADD_DJI_MSG(msg) do { if (messageCount < ARRAYLEN(messages)) messages[messageCount++] = (msg); } while (0)
+        #define ADD_DJI_MSG(msg) do { if (messageCount < regularMessageLimit) messages[messageCount++] = (msg); } while (0)
 
         const char *vtolTransitionMessage = osdVtolTransitionMessage();
         if (vtolTransitionMessage) {
@@ -1077,8 +1088,16 @@ static bool djiFormatMessages(char *buff)
         }
         // Pick one of the available messages. Each message lasts
         // a second.
+#ifdef USE_MULTI_SENSOR
+        if (trustMessage) {
+            messages[messageCount++] = trustMessage;
+        }
+#endif
         if (messageCount > 0) {
             const char *message = messages[OSD_ALTERNATING_CHOICES(DJI_ALTERNATING_DURATION_SHORT, messageCount)];
+#ifdef USE_MULTI_SENSOR
+            trustVisible = trustMessage && message == trustMessage;
+#endif
             if (message == vtolTransitionMessage &&
                 osdVtolTransitionMessageShouldBlink() &&
                 OSD_ALTERNATING_CHOICES(DJI_ALTERNATING_DURATION_SHORT / 2, 2) == 0) {
@@ -1115,6 +1134,15 @@ static bool djiFormatMessages(char *buff)
         }
         haveMessage = true;
     }
+#ifdef USE_MULTI_SENSOR
+    if (!ARMING_FLAG(ARMED) && trustMessage &&
+        (!haveMessage || OSD_ALTERNATING_CHOICES(DJI_ALTERNATING_DURATION_SHORT, 2) == 1)) {
+        strcpy(buff, trustMessage);
+        haveMessage = true;
+        trustVisible = true;
+    }
+    osdSensorTrustSetVisible(trustVisible);
+#endif
     return haveMessage;
 }
 

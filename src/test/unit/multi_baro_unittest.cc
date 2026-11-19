@@ -109,6 +109,22 @@ protected:
         }
     }
 };
+
+TEST_F(MultiBaroTest, HardwareInventoryReportsDetectedChipsRatherThanPressureHealth) {
+    ASSERT_TRUE(baroInit());
+    EXPECT_EQ(baroGetSensorHardware(0), BARO_MS5611);
+    EXPECT_EQ(baroGetSensorHardware(1), BARO_SPL06);
+    EXPECT_EQ(baroGetSensorHardware(2), BARO_NONE);
+    chips[1].ack = false;
+    run(30);
+    EXPECT_EQ(baroGetSensorHardware(1), BARO_SPL06);
+    chips[1].present = false;
+    ASSERT_TRUE(baroInit());
+    EXPECT_EQ(baroGetSensorHardware(1), BARO_NONE);
+    multiSensorConfigMutable()->baroEnabled = false;
+    multiSensorLatchBaroMode();
+    EXPECT_EQ(baroGetSensorHardware(0), BARO_NONE);
+}
 TEST_F(MultiBaroTest, IndependentConversionDelaysAndAveraging) {
     ASSERT_TRUE(baroInit());
     EXPECT_FALSE(baroIsHealthy());

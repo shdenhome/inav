@@ -62,12 +62,20 @@ set_property(SOURCE multi_gyro_unittest.cc PROPERTY depends
     "common/maths.c" "common/filter.c" "common/lulu.c" "sensors/boardalignment.c" "build/debug.c")
 set_property(SOURCE multi_gyro_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
 
+set_property(SOURCE multi_sensor_msp_unittest.cc PROPERTY depends
+    "sensors/multi_sensor_msp.c" "sensors/multi_sensor.c" "common/streambuf.c")
+set_property(SOURCE multi_sensor_msp_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
+
 set_property(SOURCE maths_unittest.cc PROPERTY depends "common/maths.c")
 
 set_property(SOURCE navigation_fixedwing_turn_math_unittest.cc PROPERTY depends
     "navigation/navigation_fixedwing_turn_math.c" "common/maths.c")
 
 set_property(SOURCE olc_unittest.cc PROPERTY depends "common/olc.c")
+
+set_property(SOURCE osd_sensor_trust_unittest.cc PROPERTY depends
+    "io/osd_sensor_trust.c" "common/sensor_trust.c" "sensors/multi_sensor.c")
+set_property(SOURCE osd_sensor_trust_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
 
 set_property(SOURCE rcdevice_unittest.cc PROPERTY definitions USE_RCDEVICE)
 set_property(SOURCE rcdevice_unittest.cc PROPERTY depends
@@ -79,6 +87,8 @@ set_property(SOURCE sensor_fusion_unittest.cc PROPERTY depends "common/sensor_fu
 set_property(SOURCE sensor_gyro_unittest.cc PROPERTY depends
     "build/debug.c" "common/maths.c" "common/calibration.c" "common/filter.c"
     "drivers/accgyro/accgyro_fake.c" "sensors/gyro.c" "sensors/boardalignment.c")
+
+set_property(SOURCE sensor_trust_unittest.cc PROPERTY depends "common/sensor_trust.c")
 
 set_property(SOURCE telemetry_hott_unittest.cc PROPERTY depends
     "telemetry/hott.c" "common/gps_conversion.c" "common/string_light.c")
