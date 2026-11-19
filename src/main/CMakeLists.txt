@@ -41,6 +41,10 @@ main_sources(COMMON_SRC
     common/olc.h
     common/printf.c
     common/printf.h
+    common/sensor_fusion.c
+    common/sensor_fusion.h
+    common/sensor_trust.c
+    common/sensor_trust.h
     common/streambuf.c
     common/streambuf.h
     common/string_light.c
@@ -403,6 +407,8 @@ main_sources(COMMON_SRC
     io/headtracker_msp.h
     io/osd_dji_hd.c
     io/osd_dji_hd.h
+    io/osd_sensor_trust.c
+    io/osd_sensor_trust.h
     io/lights.c
     io/lights.h
     io/piniobox.c
@@ -514,6 +520,14 @@ main_sources(COMMON_SRC
     sensors/diagnostics.h
     sensors/gyro.c
     sensors/gyro.h
+    sensors/multi_acc.c
+    sensors/multi_acc.h
+    sensors/multi_sensor.c
+    sensors/multi_sensor.h
+    sensors/multi_sensor_msp.c
+    sensors/multi_sensor_msp.h
+    sensors/multi_sensor_telemetry.c
+    sensors/multi_sensor_telemetry.h
     sensors/initialisation.c
     sensors/initialisation.h
     sensors/esc_sensor.c
@@ -530,6 +544,8 @@ main_sources(COMMON_SRC
     blackbox/blackbox_encoding.h
     blackbox/blackbox_io.c
     blackbox/blackbox_io.h
+    blackbox/multi_sensor_log.c
+    blackbox/multi_sensor_log.h
 
     cms/cms.c
     cms/cms.h

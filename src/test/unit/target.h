@@ -57,3 +57,12 @@
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         0xffff
 
+
+#ifdef MULTI_IMU_UNIT_TEST
+// Focus these host tests on acquisition, calibration and fusion. CMSIS FFT and
+// optional control-loop filters require MCU-specific tooling and are not exercised here.
+#undef USE_DYNAMIC_FILTERS
+#undef USE_GYRO_KALMAN
+#undef USE_ADAPTIVE_FILTER
+#undef USE_RPM_FILTER
+#endif

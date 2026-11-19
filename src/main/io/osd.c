@@ -34,6 +34,7 @@
 #include "platform.h"
 
 #ifdef USE_OSD
+#include "io/osd_sensor_trust.h"
 
 #include "build/debug.h"
 #include "build/version.h"
@@ -6321,9 +6322,16 @@ textAttributes_t osdGetSystemMessage(char *buff, size_t buff_size, bool isCenter
         char messageBuf[MAX(SETTING_MAX_NAME_LENGTH, OSD_MESSAGE_LENGTH + 1)];
 
         /* Messages array - use ADD_MSG() for bounds-safe access. */
+#ifdef USE_MULTI_SENSOR
+        const char *messages[9];
+        const unsigned regularMessageLimit = ARRAYLEN(messages) - 1;
+        const char *trustMessage = osdSensorTrustMessage();
+#else
         const char *messages[8];
+        const unsigned regularMessageLimit = ARRAYLEN(messages);
+#endif
         unsigned messageCount = 0;
-        #define ADD_MSG(msg) do { if (messageCount < ARRAYLEN(messages)) messages[messageCount++] = (msg); } while(0)
+        #define ADD_MSG(msg) do { if (messageCount < regularMessageLimit) messages[messageCount++] = (msg); } while(0)
 #ifdef USE_TERRAIN
         /* The terrain floor warnings are crash-avoidance class: they blink
          * like the failsafe info text below. Remembering the stored pointer
@@ -6649,6 +6657,12 @@ textAttributes_t osdGetSystemMessage(char *buff, size_t buff_size, bool isCenter
             }
         }
 
+#ifdef USE_MULTI_SENSOR
+        // Keep the original eight regular-message slots and reserve one event slot.
+        if (trustMessage) {
+            messages[messageCount++] = trustMessage;
+        }
+#endif
         if (messageCount > 0) {
             message = messages[OSD_ALTERNATING_CHOICES(systemMessageCycleTime(messageCount, messages), messageCount)];
             if (message == failsafeInfoMessage || message == OSD_MESSAGE_STR(OSD_MSG_MENU_NAV_REQ)) {
@@ -6675,6 +6689,9 @@ textAttributes_t osdGetSystemMessage(char *buff, size_t buff_size, bool isCenter
             // will cause it to be missing from some frames.
         }
 
+#ifdef USE_MULTI_SENSOR
+        osdSensorTrustSetVisible(trustMessage && message == trustMessage);
+#endif
         osdFormatMessage(buff, buff_size, message, isCenteredText);
     }
     #undef ADD_MSG

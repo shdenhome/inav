@@ -217,6 +217,14 @@ static void icm42605AccAndGyroInit(gyroDev_t *gyro)
     busSetSpeed(dev, BUS_SPEED_INITIALIZATION);
 
     setUserBank(dev, ICM426XX_BANK_SELECT0);
+#ifdef USE_MULTI_SENSOR
+    // Disable a retained DRDY mapping before waking the gyro: on MATEKH743HD
+    // both SPI4 IMUs share INT, and the scheduler polls rather than using that net.
+    if (gyro->pollingOnly && !busWrite(dev, ICM42605_RA_INT_SOURCE0, ICM42605_UI_DRDY_INT1_EN_DISABLED)) {
+        gyro->sampleRateIntervalUs = 0;
+        return;
+    }
+#endif
     busWrite(dev, ICM42605_RA_PWR_MGMT0, ICM42605_PWR_MGMT0_TEMP_DISABLE_OFF | ICM42605_PWR_MGMT0_ACCEL_MODE_LN | ICM42605_PWR_MGMT0_GYRO_MODE_LN);
     delay(15);
 
@@ -262,7 +270,13 @@ static void icm42605AccAndGyroInit(gyroDev_t *gyro)
 
     uint8_t intConfig1Value;
 
-    busWrite(dev, ICM42605_RA_INT_SOURCE0, ICM42605_UI_DRDY_INT1_EN_ENABLED);
+    uint8_t interruptSource = ICM42605_UI_DRDY_INT1_EN_ENABLED;
+#ifdef USE_MULTI_SENSOR
+    if (gyro->pollingOnly) {
+        interruptSource = ICM42605_UI_DRDY_INT1_EN_DISABLED;
+    }
+#endif
+    busWrite(dev, ICM42605_RA_INT_SOURCE0, interruptSource);
 
     // Datasheet says: "User should change setting to 0 from default setting of 1, for proper INT1 and INT2 pin operation"
     busRead(dev, ICM42605_RA_INT_CONFIG1, &intConfig1Value);
@@ -287,7 +301,7 @@ static void icm42605AccAndGyroInit(gyroDev_t *gyro)
 
 static bool icm42605DeviceDetect(busDevice_t * dev)
 {
-    uint8_t tmp;
+    uint8_t tmp = 0;
 
     busSetSpeed(dev, BUS_SPEED_INITIALIZATION);
 
@@ -296,7 +310,9 @@ static bool icm42605DeviceDetect(busDevice_t * dev)
     for (int attempt = 0; attempt < 5; attempt++) {
         delay(150);
 
-        busRead(dev, MPU_RA_WHO_AM_I, &tmp);
+        if (!busRead(dev, MPU_RA_WHO_AM_I, &tmp)) {
+            continue;
+        }
 
         switch (tmp) {
             /* ICM42605, ICM42686P and ICM42688P share the register structure */

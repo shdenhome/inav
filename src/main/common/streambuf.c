@@ -128,7 +128,7 @@ __attribute__((noinline)) uint32_t sbufReadU32(sbuf_t *src)
     ret = sbufReadU8(src);
     ret |= sbufReadU8(src) <<  8;
     ret |= sbufReadU8(src) << 16;
-    ret |= sbufReadU8(src) << 24;
+    ret |= (uint32_t)sbufReadU8(src) << 24;
     return ret;
 }
 

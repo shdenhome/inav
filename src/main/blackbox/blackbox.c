@@ -26,6 +26,10 @@
 
 #include "blackbox.h"
 #include "blackbox_encoding.h"
+#include "multi_sensor_log.h"
+#include "sensors/multi_sensor.h"
+#include "sensors/multi_acc.h"
+#include "common/bitarray.h"
 #include "blackbox_io.h"
 
 #include "build/debug.h"
@@ -458,6 +462,13 @@ static const blackboxDeltaFieldDefinition_t blackboxMainFields[] = {
     {"navAcc",     0, SIGNED,   .Ipredict = PREDICT(0),       .Iencode = ENCODING(SIGNED_VB),   .Ppredict = PREDICT(AVERAGE_2),     .Pencode = ENCODING(SIGNED_VB), FLIGHT_LOG_FIELD_CONDITION_NAV_ACC},
     {"navAcc",     1, SIGNED,   .Ipredict = PREDICT(0),       .Iencode = ENCODING(SIGNED_VB),   .Ppredict = PREDICT(AVERAGE_2),     .Pencode = ENCODING(SIGNED_VB), FLIGHT_LOG_FIELD_CONDITION_NAV_ACC},
     {"navAcc",     2, SIGNED,   .Ipredict = PREDICT(0),       .Iencode = ENCODING(SIGNED_VB),   .Ppredict = PREDICT(AVERAGE_2),     .Pencode = ENCODING(SIGNED_VB), FLIGHT_LOG_FIELD_CONDITION_NAV_ACC},
+#ifdef USE_MULTI_SENSOR
+#define MULTI_FIELD(name, index, member, group) \
+    {#name, index, SIGNED, .Ipredict = PREDICT(0), .Iencode = ENCODING(SIGNED_VB), \
+        .Ppredict = PREDICT(PREVIOUS), .Pencode = ENCODING(SIGNED_VB), FLIGHT_LOG_FIELD_CONDITION_ ## group},
+    MULTI_SENSOR_MAIN_LOG_FIELDS(MULTI_FIELD)
+#undef MULTI_FIELD
+#endif
 };
 
 #ifdef USE_GPS
@@ -487,56 +498,62 @@ static const blackboxSimpleFieldDefinition_t blackboxGpsHFields[] = {
 #endif
 
 // Rarely-updated fields
-static const blackboxSimpleFieldDefinition_t blackboxSlowFields[] = {
+static const blackboxConditionalFieldDefinition_t blackboxSlowFields[] = {
     /* "flightModeFlags" renamed internally to more correct ref of rcModeFlags, since it logs rc boxmode selections,
      * but name kept for external compatibility reasons.
      * "activeFlightModeFlags" logs actual active flight modes rather than rc boxmodes.
      * 'active' should at least distinguish it from the existing "flightModeFlags" */
 
-    {"activeWpNumber",        -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"flightModeFlags",       -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"flightModeFlags2",      -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"activeFlightModeFlags", -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"stateFlags",            -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
+    {"activeWpNumber",        -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"flightModeFlags",       -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"flightModeFlags2",      -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"activeFlightModeFlags", -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"stateFlags",            -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
 
-    {"failsafePhase",         -1, UNSIGNED, PREDICT(0),      ENCODING(TAG2_3S32)},
-    {"rxSignalReceived",      -1, UNSIGNED, PREDICT(0),      ENCODING(TAG2_3S32)},
-    {"rxFlightChannelsValid", -1, UNSIGNED, PREDICT(0),      ENCODING(TAG2_3S32)},
-    {"rxUpdateRate",          -1, UNSIGNED, PREDICT(PREVIOUS),      ENCODING(UNSIGNED_VB)},
+    {"failsafePhase",         -1, UNSIGNED, PREDICT(0),      ENCODING(TAG2_3S32), CONDITION(ALWAYS)},
+    {"rxSignalReceived",      -1, UNSIGNED, PREDICT(0),      ENCODING(TAG2_3S32), CONDITION(ALWAYS)},
+    {"rxFlightChannelsValid", -1, UNSIGNED, PREDICT(0),      ENCODING(TAG2_3S32), CONDITION(ALWAYS)},
+    {"rxUpdateRate",          -1, UNSIGNED, PREDICT(PREVIOUS),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
 
-    {"hwHealthStatus",        -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"powerSupplyImpedance",  -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"sagCompensatedVBat",    -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
-    {"wind",                   0, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"wind",                   1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"wind",                   2, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
+    {"hwHealthStatus",        -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"powerSupplyImpedance",  -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"sagCompensatedVBat",    -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"wind",                   0, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"wind",                   1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"wind",                   2, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
 #if defined(USE_RX_MSP) && defined(USE_MSP_RC_OVERRIDE)
-    {"mspOverrideFlags",      -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
+    {"mspOverrideFlags",      -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
 #endif
-    {"IMUTemperature",        -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
+    {"IMUTemperature",        -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
 #ifdef USE_BARO
-    {"baroTemperature",       -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
+    {"baroTemperature",       -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
 #endif
 #ifdef USE_TEMPERATURE_SENSOR
-    {"sens0Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens1Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens2Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens3Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens4Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens5Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens6Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
-    {"sens7Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB)},
+    {"sens0Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens1Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens2Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens3Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens4Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens5Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens6Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"sens7Temp",             -1, SIGNED,   PREDICT(0),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
 #endif
 #ifdef USE_ESC_SENSOR
-    {"escRPM",                -1, UNSIGNED, PREDICT(0),             ENCODING(UNSIGNED_VB)},
-    {"escTemperature",        -1, SIGNED,   PREDICT(PREVIOUS),      ENCODING(SIGNED_VB)},
+    {"escRPM",                -1, UNSIGNED, PREDICT(0),             ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
+    {"escTemperature",        -1, SIGNED,   PREDICT(PREVIOUS),      ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
 #endif
 #ifdef USE_DRONECAN
-    {"droneCANBusOffCount",   -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB)},
+    {"droneCANBusOffCount",   -1, UNSIGNED, PREDICT(0),      ENCODING(UNSIGNED_VB), CONDITION(ALWAYS)},
 #endif
 #ifdef USE_TERRAIN
-    {"terrainAGL",                -1, SIGNED,   PREDICT(0),             ENCODING(SIGNED_VB)},
-    {"terrainAMSL",               -1, SIGNED,   PREDICT(0),             ENCODING(SIGNED_VB)},
+    {"terrainAGL",                -1, SIGNED,   PREDICT(0),             ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+    {"terrainAMSL",               -1, SIGNED,   PREDICT(0),             ENCODING(SIGNED_VB), CONDITION(ALWAYS)},
+#endif
+#ifdef USE_MULTI_SENSOR
+#define MULTI_SLOW_FIELD(name, index, member, group) \
+    {#name, index, SIGNED, PREDICT(0), ENCODING(SIGNED_VB), FLIGHT_LOG_FIELD_CONDITION_ ## group},
+    MULTI_SENSOR_SLOW_LOG_FIELDS(MULTI_SLOW_FIELD)
+#undef MULTI_SLOW_FIELD
 #endif
 };
 
@@ -613,6 +630,9 @@ typedef struct blackboxMainState_s {
     int16_t navHeading;
     uint16_t navTargetHeading;
     int16_t navSurface;
+#ifdef USE_MULTI_SENSOR
+    multiSensorLogState_t multiSensor;
+#endif
 } blackboxMainState_t;
 
 typedef struct blackboxGpsState_s {
@@ -680,10 +700,9 @@ static struct {
 } xmitState;
 
 // Cache for FLIGHT_LOG_FIELD_CONDITION_* test results:
-static uint64_t blackboxConditionCache;
+static BITARRAY_DECLARE(blackboxConditionCache, FLIGHT_LOG_FIELD_CONDITION_LAST + 1);
 
-// The cache holds a bit for every condition up to and including LAST, which is NEVER, so
-// it needs LAST + 1 bits. A dual-gyro target takes the 64th
+// Size the aligned cache from the condition enum; multi-sensor fields exceed 64 bits.
 STATIC_ASSERT((sizeof(blackboxConditionCache) * 8) > FLIGHT_LOG_FIELD_CONDITION_LAST, too_many_flight_log_conditions);
 
 static uint32_t blackboxIFrameInterval;
@@ -702,6 +721,11 @@ static uint16_t vbatReference;
 
 static blackboxGpsState_t gpsHistory;
 static blackboxSlowState_t slowHistory;
+#ifdef USE_MULTI_SENSOR
+static multiSensorLogState_t multiSlowHistory;
+static uint32_t multiSlowAtUs;
+static bool multiSlowInitialized;
+#endif
 
 // Keep a history of length 2, plus a buffer for MW to store the new values into
 static EXTENDED_FASTRAM blackboxMainState_t blackboxHistoryRing[3];
@@ -879,6 +903,16 @@ static bool testBlackboxConditionUncached(FlightLogFieldCondition condition)
     case FLIGHT_LOG_FIELD_CONDITION_GYRO_PEAKS_YAW:
         return blackboxIncludeFlag(BLACKBOX_FEATURE_GYRO_PEAKS_YAW);
 
+#ifdef USE_MULTI_SENSOR
+    case FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_IMU:
+    case FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_GYRO:
+        return multiSensorImuEnabled();
+    case FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_ACC:
+        return multiSensorImuEnabled() && blackboxIncludeFlag(BLACKBOX_FEATURE_ACC);
+    case FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_BARO:
+        return multiSensorBaroEnabled();
+#endif
+
     case FLIGHT_LOG_FIELD_CONDITION_NEVER:
         return false;
 
@@ -889,21 +923,18 @@ static bool testBlackboxConditionUncached(FlightLogFieldCondition condition)
 
 static void blackboxBuildConditionCache(void)
 {
-    blackboxConditionCache = 0;
+    BITARRAY_CLR_ALL(blackboxConditionCache);
     for (uint8_t cond = FLIGHT_LOG_FIELD_CONDITION_FIRST; cond <= FLIGHT_LOG_FIELD_CONDITION_LAST; cond++) {
 
-        const uint64_t position = ((uint64_t)1) << cond;
-
         if (testBlackboxConditionUncached(cond)) {
-            blackboxConditionCache |= position;
+            bitArraySet(blackboxConditionCache, cond);
         }
     }
 }
 
 static bool testBlackboxCondition(FlightLogFieldCondition condition)
 {
-    const uint64_t position = ((uint64_t)1) << condition;
-    return (blackboxConditionCache & position) != 0;
+    return bitArrayGet(blackboxConditionCache, condition);
 }
 
 static void blackboxSetState(BlackboxState newState)
@@ -930,6 +961,9 @@ static void blackboxSetState(BlackboxState newState)
         break;
     case BLACKBOX_STATE_RUNNING:
         blackboxSlowFrameIterationTimer = blackboxSInterval; //Force a slow frame to be written on the first iteration
+#ifdef USE_MULTI_SENSOR
+        multiSlowInitialized = false;
+#endif
         break;
     case BLACKBOX_STATE_SHUTTING_DOWN:
         xmitState.u.startTime = millis();
@@ -947,6 +981,18 @@ static void blackboxSetState(BlackboxState newState)
     gyroSetSecondaryLogging(newState == BLACKBOX_STATE_RUNNING);
 #endif
 }
+
+#ifdef USE_MULTI_SENSOR
+static unsigned blackboxMultiSensorGroups(void)
+{
+    unsigned groups = 0;
+    if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_IMU)) groups |= MULTI_LOG_IMU;
+    if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_GYRO)) groups |= MULTI_LOG_GYRO;
+    if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_ACC)) groups |= MULTI_LOG_ACC;
+    if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_BARO)) groups |= MULTI_LOG_BARO;
+    return groups;
+}
+#endif
 
 static void writeIntraframe(void)
 {
@@ -1148,6 +1194,10 @@ static void writeIntraframe(void)
             blackboxWriteSignedVB(blackboxCurrent->navAccNEU[x]);
         }
     }
+
+#ifdef USE_MULTI_SENSOR
+    multiSensorLogWriteMain(&blackboxCurrent->multiSensor, NULL, blackboxMultiSensorGroups());
+#endif
 
     //Rotate our history buffers:
 
@@ -1415,6 +1465,10 @@ static void writeInterframe(void)
         }
     }
 
+#ifdef USE_MULTI_SENSOR
+    multiSensorLogWriteMain(&blackboxCurrent->multiSensor, &blackboxLast->multiSensor, blackboxMultiSensorGroups());
+#endif
+
     //Rotate our history buffers
     blackboxHistory[2] = blackboxHistory[1];
     blackboxHistory[1] = blackboxHistory[0];
@@ -1479,6 +1533,10 @@ static void writeSlowFrame(void)
 
 #ifdef USE_DRONECAN
     blackboxWriteUnsignedVB(slowHistory.droneCANBusOffCount);
+#endif
+
+#ifdef USE_MULTI_SENSOR
+    multiSensorLogWriteSlow(&multiSlowHistory, blackboxMultiSensorGroups());
 #endif
 
     blackboxSlowFrameIterationTimer = 0;
@@ -1598,6 +1656,12 @@ static bool writeSlowFrameIfNeeded(bool allowPeriodicWrite)
     // Write the slow frame peridocially so it can be recovered if we ever lose sync
     bool shouldWrite = allowPeriodicWrite && blackboxSlowFrameIterationTimer >= blackboxSInterval;
 
+#ifdef USE_MULTI_SENSOR
+    const uint32_t nowUs = micros();
+    const bool multiEnabled = blackboxMultiSensorGroups() != 0;
+    shouldWrite |= multiEnabled && (!multiSlowInitialized || (allowPeriodicWrite && (uint32_t)(nowUs - multiSlowAtUs) >= 100000));
+#endif
+
     if (shouldWrite) {
         loadSlowState(&slowHistory);
     } else {
@@ -1614,6 +1678,13 @@ static bool writeSlowFrameIfNeeded(bool allowPeriodicWrite)
     }
 
     if (shouldWrite) {
+#ifdef USE_MULTI_SENSOR
+        if (multiEnabled) {
+            multiSensorLogCapture(&multiSlowHistory, nowUs);
+            multiSlowAtUs = nowUs;
+            multiSlowInitialized = true;
+        }
+#endif
         writeSlowFrame();
     }
     return shouldWrite;
@@ -1783,6 +1854,11 @@ static void writeGPSFrame(timeUs_t currentTimeUs)
 static void loadMainState(timeUs_t currentTimeUs)
 {
     blackboxMainState_t *blackboxCurrent = blackboxHistory[0];
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled() || multiSensorBaroEnabled()) {
+        multiSensorLogCapture(&blackboxCurrent->multiSensor, currentTimeUs);
+    }
+#endif
 
     blackboxCurrent->time = currentTimeUs;
 
@@ -2068,6 +2144,20 @@ static bool blackboxWriteSysinfo(void)
         BLACKBOX_PRINT_HEADER_LINE("gyro_scale", "0x%x",                    castFloatBytesToInt(1.0f));
         BLACKBOX_PRINT_HEADER_LINE("motorOutput", "%d,%d",                  getThrottleIdleValue(),getMaxThrottle());
         BLACKBOX_PRINT_HEADER_LINE("acc_1G", "%u",                          acc.dev.acc_1G);
+#ifdef USE_MULTI_SENSOR
+        BLACKBOX_PRINT_HEADER_LINE_CUSTOM(
+            if (multiSensorImuEnabled() || multiSensorBaroEnabled())
+                blackboxPrintfHeaderLine("multi_sensor_version", "%u", 1);
+        );
+        BLACKBOX_PRINT_HEADER_LINE_CUSTOM(
+            if (multiSensorImuEnabled())
+                blackboxPrintfHeaderLine("multi_imu_units", "%s", "gyro_mdps,acc_mg,trust_1000,age_ms");
+        );
+        BLACKBOX_PRINT_HEADER_LINE_CUSTOM(
+            if (multiSensorBaroEnabled())
+                blackboxPrintfHeaderLine("multi_baro_units", "%s", "pressure_pa,temp_centi,alt_cm,age_ms");
+        );
+#endif
 
 #ifdef USE_ADC
         BLACKBOX_PRINT_HEADER_LINE_CUSTOM(
@@ -2416,7 +2506,7 @@ void blackboxUpdate(timeUs_t currentTimeUs)
     case BLACKBOX_STATE_SEND_SLOW_HEADER:
         //On entry of this state, xmitState.headerIndex is 0 and xmitState.u.fieldIndex is -1
         if (!sendFieldDefinition('S', 0, blackboxSlowFields, blackboxSlowFields + 1, ARRAYLEN(blackboxSlowFields),
-                NULL, NULL)) {
+                &blackboxSlowFields[0].condition, &blackboxSlowFields[1].condition)) {
             blackboxSetState(BLACKBOX_STATE_SEND_SYSINFO);
         }
         break;

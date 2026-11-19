@@ -120,6 +120,8 @@ bool cliMode = false;
 #include "sensors/compass.h"
 #include "sensors/diagnostics.h"
 #include "sensors/gyro.h"
+#include "sensors/multi_sensor.h"
+#include "sensors/multi_acc.h"
 #include "sensors/pitotmeter.h"
 #include "sensors/rangefinder.h"
 #include "sensors/opflow.h"
@@ -4277,6 +4279,51 @@ static void cliStatus(char *cmdline)
         }
         else {
             cliPrintLinef("ADC %d", adcGetFunctionChannelAllocation(i));
+        }
+    }
+#endif
+
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        cliPrintLinef("Multi IMU: gyro contributors=%u healthy=%u; acc contributors=%u healthy=%u",
+            multiGyroFusion.contributors, multiGyroFusion.healthy, multiAccFusion.contributors, multiAccFusion.healthy);
+        cliPrintLinef("  IMU low-trust fallback: gyro=%u acc=%u",
+            multiGyroFusion.fallbackActive, multiAccFusion.fallbackActive);
+        for (unsigned i = 0; i < MULTI_IMU_COUNT; i++) {
+            const sensorFusionSample_t *g = &multiGyroSamples[i];
+            const sensorFusionSample_t *a = &multiAccSamples[i];
+            cliPrintLinef("  IMU slot=%u tag=%u gyro confidence=%d/1000 valid=%u age=%u us acc confidence=%d/1000 valid=%u age=%u us",
+                i, gyroGetImuTag(i), (int)lrintf(multiGyroFusion.member[i].confidence * 1000),
+                multiGyroFusion.member[i].usable, (unsigned)((uint32_t)micros() - g->timestampUs),
+                (int)lrintf(multiAccFusion.member[i].confidence * 1000), multiAccFusion.member[i].usable,
+                (unsigned)((uint32_t)micros() - a->timestampUs));
+            if (g->valid) {
+                char x[18], y[18], z[18];
+                cliPrintLinef("    gyro deg/s: %s %s %s", ftoa(g->value[0], x), ftoa(g->value[1], y), ftoa(g->value[2], z));
+            }
+            if (a->valid) {
+                char x[18], y[18], z[18];
+                cliPrintLinef("    acc g: %s %s %s", ftoa(a->value[0], x), ftoa(a->value[1], y), ftoa(a->value[2], z));
+            }
+            multiAccCalibrationStatus_t accStatus;
+            if (multiAccGetCalibrationStatus(i, &accStatus)) {
+                char x[18], y[18], z[18];
+                cliPrintLinef("    acc calibration: detected=%u read=%u face=%d faces=0x%02x collecting=%u target=%d",
+                    accStatus.detected, accStatus.readValid, accStatus.orientation, accStatus.completedFaces,
+                    accStatus.collecting, accStatus.collectingFace);
+                cliPrintLinef("    acc uncalibrated g: %s %s %s",
+                    ftoa(accStatus.uncalibratedG[0], x), ftoa(accStatus.uncalibratedG[1], y), ftoa(accStatus.uncalibratedG[2], z));
+            }
+        }
+    }
+    if (multiSensorBaroEnabled()) {
+        cliPrintLinef("Multi BARO: contributors=%u healthy=%u pressure=%d Pa",
+            multiBaroFusion.contributors, multiBaroFusion.healthy, baro.baroPressure);
+        for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+            cliPrintLinef("  %s confidence=%d/1000 valid=%u pressure=%d Pa offset=%d Pa age=%u us",
+                i == 0 ? "MS5611" : "SPL06", (int)lrintf(multiBaroFusion.member[i].confidence * 1000),
+                multiBaroFusion.member[i].usable, (int)multiBaroSamples[i].value[0], (int)lrintf(baroGetPressureOffset(i)),
+                (unsigned)((uint32_t)micros() - multiBaroSamples[i].timestampUs));
         }
     }
 #endif

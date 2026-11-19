@@ -64,6 +64,7 @@
 #include "io/gps.h"
 #include "io/ledstrip.h"
 #include "io/osd.h"
+#include "io/osd_sensor_trust.h"
 #include "io/serial.h"
 #include "io/rcdevice_cam.h"
 #include "io/osd_joystick.h"
@@ -207,7 +208,9 @@ void taskUpdateBaro(timeUs_t currentTimeUs)
         rescheduleTask(TASK_SELF, newDeadline);
     }
 
-    updatePositionEstimator_BaroTopic(currentTimeUs);
+    if (baroHasNewSample()) {
+        updatePositionEstimator_BaroTopic(currentTimeUs);
+    }
 }
 #endif
 
@@ -354,6 +357,9 @@ void taskUpdateOsd(timeUs_t currentTimeUs)
 
 void taskUpdateAux(timeUs_t currentTimeUs)
 {
+#ifdef USE_MULTI_SENSOR
+    osdSensorTrustUpdate();
+#endif
     updatePIDCoefficients();
     dynamicLpfGyroTask();
 #ifdef USE_SIMULATOR

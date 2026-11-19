@@ -61,6 +61,8 @@
 #include "sensors/battery.h"
 #include "sensors/boardalignment.h"
 #include "sensors/gyro.h"
+#include "sensors/multi_sensor.h"
+#include "sensors/multi_acc.h"
 #include "sensors/sensors.h"
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
@@ -312,7 +314,16 @@ bool accInit(uint32_t targetLooptime)
     acc.dev.imuSensorToUse = 0;
 #endif
 
-    if (!accDetect(&acc.dev, accelerometerConfig()->acc_hardware)) {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        acc.dev.imuSensorToUse = gyroGetImuTag(0);
+    }
+#endif
+    if (!accDetect(&acc.dev,
+#ifdef USE_MULTI_SENSOR
+        multiSensorImuEnabled() ? ACC_AUTODETECT :
+#endif
+        accelerometerConfig()->acc_hardware)) {
         return false;
     }
 
@@ -322,6 +333,14 @@ bool accInit(uint32_t targetLooptime)
     acc.accClipCount = 0;
     accInitFilters();
     updateAccCoefficients();
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        if (!multiAccInit()) {
+            return false;
+        }
+        accSetCalibrationValues();
+    }
+#endif
 
     for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
         acc.extremes[axis].min = 100;
@@ -336,6 +355,19 @@ static float accSamples[6][3];
 
 uint8_t accGetCalibrationAxisFlags(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        const unsigned faces = multiAccCalibrationFaces();
+        const uint8_t map[6] = {0, 1, 3, 5, 2, 4};
+        uint8_t flags = 0;
+        for (unsigned i = 0; i < 6; i++) {
+            if (faces & (1u << i)) {
+                flags |= 1u << map[i];
+            }
+        }
+        return flags;
+    }
+#endif
     if (STATE(ACCELEROMETER_CALIBRATED)) {
         return 0x3F;    // All 6 bits are set
     }
@@ -377,6 +409,12 @@ static int getPrimaryAxisIndex(float accADCData[3])
 
 void accStartCalibration(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        multiAccStartCalibration();
+        return;
+    }
+#endif
     int positionIndex = getPrimaryAxisIndex(accADC);
 
     // Fail if we can't detect the side
@@ -414,6 +452,11 @@ static bool allOrientationsHaveCalibrationDataCollected(void)
 
 bool accIsCalibrationComplete(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        return multiAccCalibrationComplete();
+    }
+#endif
     return zeroCalibrationIsCompleteV(&zeroCalibration);
 }
 
@@ -574,25 +617,37 @@ void accUpdate(void)
         return;
     }
 #endif
-    if (!acc.dev.readFn(&acc.dev)) {
-        return;
-    }
-    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        accADC[axis] = acc.dev.ADCRaw[axis];
-        DEBUG_SET(DEBUG_ACC, axis, accADC[axis]);
-    }
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        if (!multiAccUpdate(acc.accADCf)) {
+            return;
+        }
+        // Per-device alignment/calibration is already applied; board alignment is common.
+        applyBoardAlignment(acc.accADCf);
+    } else
+#endif
+    {
+        if (!acc.dev.readFn(&acc.dev)) {
+            return;
+        }
+        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+            accADC[axis] = acc.dev.ADCRaw[axis];
+            DEBUG_SET(DEBUG_ACC, axis, accADC[axis]);
+        }
 
-    if (!ARMING_FLAG(SIMULATOR_MODE_SITL)) {
-        performAcclerationCalibration();
-        applyAccelerationZero();
-    }
+        if (!ARMING_FLAG(SIMULATOR_MODE_SITL)) {
+            performAcclerationCalibration();
+            applyAccelerationZero();
+        }
 
-    applySensorAlignment(accADC, accADC, acc.dev.accAlign);
-    applyBoardAlignment(accADC);
+        applySensorAlignment(accADC, accADC, acc.dev.accAlign);
+        applyBoardAlignment(accADC);
 
-    // Calculate acceleration readings in G's
-    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-        acc.accADCf[axis] = (float)accADC[axis] / acc.dev.acc_1G;
+        // Calculate acceleration readings in G's
+        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+            acc.accADCf[axis] = (float)accADC[axis] / acc.dev.acc_1G;
+        }
+
     }
 
     // Before filtering check for clipping and vibration levels
@@ -664,6 +719,16 @@ bool accIsClipped(void)
 
 void accSetCalibrationValues(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        if (multiAccCalibrationValid()) {
+            ENABLE_STATE(ACCELEROMETER_CALIBRATED);
+        } else {
+            DISABLE_STATE(ACCELEROMETER_CALIBRATED);
+        }
+        return;
+    }
+#endif
     if (!ARMING_FLAG(SIMULATOR_MODE_SITL) &&
         ((accelerometerConfig()->accZero.raw[X] == 0) && (accelerometerConfig()->accZero.raw[Y] == 0) && (accelerometerConfig()->accZero.raw[Z] == 0) &&
         (accelerometerConfig()->accGain.raw[X] == 4096) && (accelerometerConfig()->accGain.raw[Y] == 4096) &&(accelerometerConfig()->accGain.raw[Z] == 4096))) {
@@ -721,5 +786,10 @@ void accInitFilters(void)
 
 bool accIsHealthy(void)
 {
+#ifdef USE_MULTI_SENSOR
+    if (multiSensorImuEnabled()) {
+        return multiAccFusion.healthy;
+    }
+#endif
     return true;
 }
