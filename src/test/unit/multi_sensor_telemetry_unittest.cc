@@ -43,6 +43,7 @@ protected:
         multiSensorLatchImuMode(); multiSensorLatchBaroMode();
         memset(&multiGyroFusion,0,sizeof(multiGyroFusion)); memset(&multiAccFusion,0,sizeof(multiAccFusion));
         memset(&multiBaroFusion,0,sizeof(multiBaroFusion));
+        multiGyroFusion.contributorMask = multiAccFusion.contributorMask = 7;
         for(unsigned i=0;i<3;i++) {
             tags[i]=i; hardware[i]=i==1 ? 3 : 8; rawRead[i]=true;
             auto &g=multiGyroFusion.member[i]; auto &a=multiAccFusion.member[i];
@@ -75,7 +76,7 @@ TEST_F(MultiSensorTelemetryTest, RuntimeSlotOrderDoesNotRenumberPhysicalTags) {
 }
 TEST_F(MultiSensorTelemetryTest, StaleAndQuarantinedMeasurementsAreDistinguished) {
     multiGyroSamples[0].timestampUs=now-20000;
-    multiAccFusion.member[1].confidence=0.01f;capture();
+    multiAccFusion.member[1].confidence=0.01f;multiAccFusion.contributorMask &= ~(1u << 1);capture();
     EXPECT_FALSE(state.imu[0].flags & MULTI_IMU_GYRO_VALID);
     EXPECT_TRUE(state.imu[1].flags & MULTI_IMU_ACC_VALID);
     EXPECT_FALSE(state.imu[1].flags & MULTI_IMU_ACC_CONTRIBUTOR);
@@ -123,4 +124,16 @@ TEST_F(MultiSensorTelemetryTest, SerializesExactly211BytesWithSignedLittleEndian
         std::ofstream file(path,std::ios::binary);ASSERT_TRUE(file.is_open());
         file.write(reinterpret_cast<const char*>(bytes),MULTI_SENSOR_STATE_BYTES);ASSERT_TRUE(file.good());
     }
+}
+
+TEST_F(MultiSensorTelemetryTest, LowTrustFallbackRemainsAContributorWithoutInflatingConfidence) {
+    multiGyroFusion.member[1].confidence = 0;
+    multiAccFusion.member[1].confidence = 0.02f;
+    multiGyroFusion.contributorMask = multiAccFusion.contributorMask = 1u << 1;
+    capture();
+    EXPECT_TRUE(state.imu[1].flags & MULTI_IMU_GYRO_CONTRIBUTOR);
+    EXPECT_TRUE(state.imu[1].flags & MULTI_IMU_ACC_CONTRIBUTOR);
+    EXPECT_EQ(state.imu[1].gyroTrust, 0); EXPECT_EQ(state.imu[1].accTrust, 20);
+    EXPECT_FALSE(state.imu[0].flags & MULTI_IMU_GYRO_CONTRIBUTOR);
+    EXPECT_FALSE(state.imu[2].flags & MULTI_IMU_ACC_CONTRIBUTOR);
 }

@@ -452,3 +452,38 @@ Remaining checks: real connected Sensors UI, CSV recording through serial/USB,
 on-board Blackbox recording and playback, storage throughput, added CPU cost and
 long recordings. Existing user confirmation applies to fusion/calibration and
 the previous OSD/inventory build, not these new logging changes.
+
+## Retaining the last usable IMU when trust drops
+
+Multi-IMU gyroscope and accelerometer fusion each retain a usable source if all
+confidence weights fall below 0.1. A fresh, finite, successfully read source from
+the previous contributor set is preferred; if several previous contributors are
+available, the one with greatest confidence wins. Once this fallback is active,
+that source is retained while usable, avoiding switching between low-trust IMUs.
+If it becomes unusable, the highest-confidence remaining usable source is chosen.
+With no previous contributors, the highest-confidence usable source is selected;
+a tie follows runtime slot order.
+
+The selected source's current sample is used directly, even when confidence is
+zero. The numerical confidence and its gradual recovery are not increased or
+reset. As soon as any usable source reaches the ordinary 0.1 threshold, normal
+confidence-weighted fusion resumes. Gyroscope and accelerometer groups make this
+choice independently. Barometer confidence/exclusion behavior is unchanged.
+
+`status` now reports `IMU low-trust fallback: gyro=0/1 acc=0/1`. In this state,
+`healthy=1` means a current usable output exists; it does not mean confidence has
+recovered. The contributor flags in MSP, CSV and Blackbox reflect the source
+actually used, including a low-trust fallback. Confidence remains its true value,
+and OSD loss/restoration notifications keep their existing thresholds.
+
+This rule bypasses only exclusion due to low confidence. Failed reads, stale or
+future samples, nonfinite values and invalid fusion configuration are still
+rejected. An uncalibrated accelerometer is not usable. If no usable measurement
+exists, contributors=0 and healthy=0 remain necessary; old data cannot become a
+fresh working measurement. No new in-flight failsafe or PG setting is introduced.
+
+Host checks cover zero-confidence fallback, retaining the previous source,
+replacement after a read failure, stale/future/nonfinite rejection, normal recovery,
+actual gyro/accelerometer acquisition paths and telemetry contributor flags.
+No firmware/Configurator product build is performed for this change unless
+separately requested.

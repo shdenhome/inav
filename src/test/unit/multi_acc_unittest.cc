@@ -267,3 +267,15 @@ TEST_F(MultiAccTest, HardwareInventoryUsesPhysicalTagsAndPreservesDuplicateDrive
     EXPECT_EQ(multiAccGetHardware(1), ACC_NONE);
     EXPECT_EQ(multiAccGetHardware(2), ACC_ICM42605);
 }
+
+TEST_F(MultiAccTest, LastCalibratedReadingAccelerometerRemainsInFusionAtLowTrust) {
+    calibrate(); pose[0] = pose[1] = 0; pose[2] = 1; run(10);
+    ack[0] = ack[1] = false; spike[2] = 10000;
+    run(1);
+    ASSERT_TRUE(multiAccFusion.healthy); ASSERT_TRUE(multiAccFusion.fallbackActive);
+    EXPECT_EQ(multiAccFusion.contributors, 1); EXPECT_EQ(multiAccFusion.contributorMask, 4);
+    EXPECT_LT(multiAccFusion.member[2].confidence, SENSOR_FUSION_MIN_CONFIDENCE);
+    for (unsigned axis = 0; axis < 3; axis++) EXPECT_FLOAT_EQ(output[axis], multiAccSamples[2].value[axis]);
+    ack[2] = false; run(1);
+    EXPECT_FALSE(multiAccFusion.healthy); EXPECT_EQ(multiAccFusion.contributors, 0);
+}

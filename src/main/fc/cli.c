@@ -4287,6 +4287,8 @@ static void cliStatus(char *cmdline)
     if (multiSensorImuEnabled()) {
         cliPrintLinef("Multi IMU: gyro contributors=%u healthy=%u; acc contributors=%u healthy=%u",
             multiGyroFusion.contributors, multiGyroFusion.healthy, multiAccFusion.contributors, multiAccFusion.healthy);
+        cliPrintLinef("  IMU low-trust fallback: gyro=%u acc=%u",
+            multiGyroFusion.fallbackActive, multiAccFusion.fallbackActive);
         for (unsigned i = 0; i < MULTI_IMU_COUNT; i++) {
             const sensorFusionSample_t *g = &multiGyroSamples[i];
             const sensorFusionSample_t *a = &multiAccSamples[i];

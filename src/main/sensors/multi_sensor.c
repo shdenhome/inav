@@ -54,6 +54,7 @@ sensorFusionConfig_t multiSensorFusionConfig(float deviation, bool barometer)
         .deviation = deviation,
         .recoveryTimeSeconds = config->recoveryMs * 0.001f,
         .maxAgeUs = (uint32_t)(barometer ? config->baroMaxAgeMs : config->imuMaxAgeMs) * 1000,
+        .keepLastUsable = !barometer,
     };
 }
 #endif

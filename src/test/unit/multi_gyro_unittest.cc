@@ -157,3 +157,14 @@ TEST_F(MultiGyroTest, SlowPreferredImuDoesNotThrottleAcquisitionOfFasterMembers)
     EXPECT_GT(reads[0],reads[1]*1.9);
     EXPECT_GT(reads[2],reads[1]*1.9);
 }
+
+TEST_F(MultiGyroTest, LastReadingImuFeedsControllerDespiteConfidenceLoss) {
+    start(); ack[0] = ack[1] = false; rates[2][0] = 1000;
+    run(1);
+    ASSERT_TRUE(multiGyroFusion.healthy); ASSERT_TRUE(multiGyroFusion.fallbackActive);
+    EXPECT_EQ(multiGyroFusion.contributors, 1); EXPECT_EQ(multiGyroFusion.contributorMask, 4);
+    EXPECT_LT(multiGyroFusion.member[2].confidence, SENSOR_FUSION_MIN_CONFIDENCE);
+    EXPECT_NEAR(gyro.gyroADCf[0], 1000, 0.1);
+    ack[2] = false; run(1);
+    EXPECT_FALSE(multiGyroFusion.healthy); EXPECT_EQ(multiGyroFusion.contributors, 0);
+}

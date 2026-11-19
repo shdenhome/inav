@@ -57,12 +57,12 @@ void multiSensorCaptureTelemetry(multiSensorTelemetry_t *state, uint32_t nowUs)
             imu->gyroTrust = trust(g->confidence); imu->accTrust = trust(a->confidence);
             if (valid(g, gs, imu->gyroAgeUs, (uint32_t)config->imuMaxAgeMs * 1000)) {
                 imu->flags |= MULTI_IMU_GYRO_VALID;
-                if (g->confidence >= SENSOR_FUSION_MIN_CONFIDENCE) imu->flags |= MULTI_IMU_GYRO_CONTRIBUTOR;
+                if (multiGyroFusion.contributorMask & (1u << slot)) imu->flags |= MULTI_IMU_GYRO_CONTRIBUTOR;
             }
             if (config->accCalibratedMask & (1u << tag)) imu->flags |= MULTI_IMU_ACC_CALIBRATED;
             if ((imu->flags & MULTI_IMU_ACC_CALIBRATED) && valid(a, as, imu->accAgeUs, (uint32_t)config->imuMaxAgeMs * 1000)) {
                 imu->flags |= MULTI_IMU_ACC_VALID;
-                if (a->confidence >= SENSOR_FUSION_MIN_CONFIDENCE) imu->flags |= MULTI_IMU_ACC_CONTRIBUTOR;
+                if (multiAccFusion.contributorMask & (1u << slot)) imu->flags |= MULTI_IMU_ACC_CONTRIBUTOR;
             }
             multiAccCalibrationStatus_t status;
             const bool rawValid = multiAccGetCalibrationStatus(slot, &status) && status.detected && status.readValid;

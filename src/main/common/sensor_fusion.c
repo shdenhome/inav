@@ -21,8 +21,11 @@ void sensorFusionReset(sensorFusion_t *fusion)
 bool sensorFusionUpdate(sensorFusion_t *fusion, const sensorFusionSample_t *samples,
     unsigned count, unsigned axes, uint32_t nowUs, const sensorFusionConfig_t *config)
 {
+    const uint8_t previousContributors = fusion->contributorMask;
     fusion->healthy = false;
     fusion->contributors = 0;
+    fusion->contributorMask = 0;
+    fusion->fallbackActive = false;
     if (!count || count > SENSOR_FUSION_MAX_SENSORS || !axes || axes > SENSOR_FUSION_AXES ||
         !isfinite(config->deviation) || config->deviation <= 0 || !config->maxAgeUs ||
         !isfinite(config->recoveryTimeSeconds) || config->recoveryTimeSeconds <= 0) {
@@ -156,11 +159,37 @@ bool sensorFusionUpdate(sensorFusion_t *fusion, const sensorFusionSample_t *samp
         }
         sum += member->confidence;
         fusion->contributors++;
+        fusion->contributorMask |= 1u << i;
         for (unsigned axis = 0; axis < axes; axis++) {
             output[axis] += samples[i].value[axis] * member->confidence;
         }
     }
+    if (!fusion->contributors && config->keepLastUsable) {
+        int fallback = -1;
+        // Keep a previous contributor if possible, avoiding switches between low-trust IMUs.
+        for (unsigned pass = 0; pass < 2 && fallback < 0; pass++) {
+            for (unsigned i = 0; i < count; i++) {
+                if (!fusion->member[i].usable || (!pass && !(previousContributors & (1u << i)))) {
+                    continue;
+                }
+                if (fallback < 0 || fusion->member[i].confidence > fusion->member[fallback].confidence) {
+                    fallback = i;
+                }
+            }
+        }
+        if (fallback >= 0) {
+            // Copy directly: even zero confidence must not divide away a fresh finite sample.
+            memcpy(fusion->output, samples[fallback].value, axes * sizeof(float));
+            fusion->contributors = 1;
+            fusion->contributorMask = 1u << fallback;
+            fusion->fallbackActive = true;
+            fusion->healthy = true;
+            return true;
+        }
+    }
     if (sum <= 1e-6f || !isfinite(sum)) {
+        fusion->contributors = 0;
+        fusion->contributorMask = 0;
         return false;
     }
     for (unsigned axis = 0; axis < axes; axis++) {

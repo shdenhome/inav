@@ -6,7 +6,7 @@
 
 #define SENSOR_FUSION_MAX_SENSORS 3
 #define SENSOR_FUSION_AXES 3
-// Below this confidence the source is quarantined until gradual recovery.
+// Below this confidence the source is quarantined, unless selected as a last usable IMU.
 #define SENSOR_FUSION_MIN_CONFIDENCE 0.1f
 
 typedef struct sensorFusionSample_s {
@@ -31,12 +31,15 @@ typedef struct sensorFusion_s {
     float output[SENSOR_FUSION_AXES];
     bool healthy;
     uint8_t contributors;
+    uint8_t contributorMask;     // Runtime slots actually used, including a low-trust fallback.
+    bool fallbackActive;
 } sensorFusion_t;
 
 typedef struct sensorFusionConfig_s {
     float deviation;            // Common physical units, not ADC counts.
     float recoveryTimeSeconds;
     uint32_t maxAgeUs;
+    bool keepLastUsable;        // Preserve a usable source when confidence excludes all others.
 } sensorFusionConfig_t;
 
 void sensorFusionReset(sensorFusion_t *fusion);
