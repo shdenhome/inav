@@ -301,3 +301,34 @@ TEST_F(MultiBaroTest, PhysicallyAbsentSecondBarometerDoesNotBlockGroundCalibrati
     EXPECT_FLOAT_EQ(baroGetPressureOffset(1),0);
     EXPECT_NEAR(baroGetLatestAltitude(),0,1);
 }
+
+TEST_F(MultiBaroTest, IndividualTelemetryHeightsShareGroundDatumAndUpdateOnConversion) {
+    chips[1].pressure = 100200;
+    ASSERT_TRUE(baroInit());
+    barometerConfigMutable()->baro_calibration_tolerance = 150;
+    baroStartCalibration();
+    int32_t first = 123, second = 456;
+    EXPECT_FALSE(baroGetSensorAltitude(0, &first));
+    EXPECT_FALSE(baroGetSensorAltitude(1, &second));
+    for (unsigned tick = 0; tick < 1000; tick++) {
+        const uint32_t wait = baroUpdate();
+        if (baroHasNewSample()) baroCalculateAltitude();
+        clockUs += wait;
+    }
+    ASSERT_TRUE(baroIsCalibrationComplete());
+    ASSERT_TRUE(baroGetSensorAltitude(0, &first));
+    ASSERT_TRUE(baroGetSensorAltitude(1, &second));
+    EXPECT_NEAR(first, 0, 2); EXPECT_NEAR(second, 0, 2);
+    EXPECT_EQ(baroGetSensorTemperature(0), 2000);
+    EXPECT_EQ(baroGetSensorTemperature(1), 2000);
+    EXPECT_FALSE(baroGetSensorAltitude(2, &first));
+    EXPECT_FALSE(baroGetSensorAltitude(0, nullptr));
+    chips[0].pressure += 50;
+    run(30);
+    ASSERT_TRUE(baroGetSensorAltitude(0, &first));
+    ASSERT_TRUE(baroGetSensorAltitude(1, &second));
+    EXPECT_LT(first, -300); EXPECT_NEAR(second, 0, 2);
+    baroStartCalibration();
+    EXPECT_FALSE(baroGetSensorAltitude(0, &first));
+    EXPECT_FALSE(baroGetSensorAltitude(1, &second));
+}

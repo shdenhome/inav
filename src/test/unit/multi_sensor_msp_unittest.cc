@@ -43,12 +43,12 @@ protected:
 };
 TEST_F(MultiSensorMspTest, WireLayoutPreservesDuplicateTypesAndPhysicalTag) {
     primaryTag = 2; serialize(true, true);
-    const uint8_t expected[] = {'M','S',1,3,2,ACC_ICM42605,ACC_MPU6500,ACC_ICM42605,BARO_MS5611,BARO_SPL06,BARO_MS5611};
+    const uint8_t expected[] = {'M','S',1,7,2,ACC_ICM42605,ACC_MPU6500,ACC_ICM42605,BARO_MS5611,BARO_SPL06,BARO_MS5611};
     EXPECT_EQ(memcmp(bytes, expected, sizeof(expected)), 0);
 }
 TEST_F(MultiSensorMspTest, DisabledModesDoNotReportInactiveAdditionalDevices) {
     serialize(false, false);
-    EXPECT_EQ(bytes[3], 0); EXPECT_EQ(bytes[4], 255);
+    EXPECT_EQ(bytes[3], 4); EXPECT_EQ(bytes[4], 255);
     for (unsigned i = 5; i < 10; i++) EXPECT_EQ(bytes[i], 0);
 }
 TEST_F(MultiSensorMspTest, MissingPhysicalDeviceDoesNotShiftOtherTagsOrClaimDetection) {
@@ -60,6 +60,6 @@ TEST_F(MultiSensorMspTest, MissingPhysicalDeviceDoesNotShiftOtherTagsOrClaimDete
     EXPECT_EQ(bytes[10], BARO_SPL06);
 }
 TEST_F(MultiSensorMspTest, ModesAreIndependent) {
-    serialize(true, false); EXPECT_EQ(bytes[3], 1);
-    serialize(false, true); EXPECT_EQ(bytes[3], 2);
+    serialize(true, false); EXPECT_EQ(bytes[3], 5);
+    serialize(false, true); EXPECT_EQ(bytes[3], 6);
 }

@@ -121,6 +121,7 @@
 #define MSP2_INAV_BATTERY2_STATE                0x20A0
 #define MSP2_INAV_BATTERY2_CONFIG               0x20A1
 #define MSP2_INAV_SET_BATTERY2_CONFIG           0x20A2
+#define MSP2_INAV_MULTI_SENSOR_STATE            0x20A3
 #define MSP2_ADSB_WARNING_VEHICLE_ICAO          0x2092
 #define MSP2_ADSB_VEHICLE                       0x2093
 #define MSP2_ADSB_VEHICLE_COUNT                 0x2094

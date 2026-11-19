@@ -77,4 +77,6 @@ float altitudeToPressure(const float altCm);
 #ifdef USE_MULTI_SENSOR
 float baroGetPressureOffset(unsigned slot);
 uint8_t baroGetSensorHardware(unsigned slot);
+int32_t baroGetSensorTemperature(unsigned slot);
+bool baroGetSensorAltitude(unsigned slot, int32_t *altitudeCm);
 #endif

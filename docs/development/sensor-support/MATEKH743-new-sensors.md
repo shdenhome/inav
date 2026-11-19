@@ -346,3 +346,109 @@ filter timing and latency still need the build/bench acceptance below.
 - Check altitude continuity and estimator behavior as contributor weights change.
 - Long-duration operation and thermal testing. **-40 to +85 C is not validated.**
 - No flight-readiness claim is made by this change.
+
+## Individual sensor graphs and logging
+
+The Configurator Sensors tab retains its aggregate graphs and adds one graph per
+physical source: three accelerometers/gyroscopes and both barometers. Existing
+checkboxes control every graph of that type. Titles identify source number and
+hardware; readouts include confidence and validity. Before accelerometer calibration,
+the graph explicitly identifies raw acceleration as uncalibrated. Missing/stale
+measurements create gaps rather than zero readings. Barometer altitude uses the same
+calibrated ground datum as the aggregate; pressure remains available before ground
+calibration completes. Per-source altitude is cached on new barometer conversions,
+not calculated in the PID or Blackbox path.
+
+### Telemetry compatibility
+
+The optional `MSP_SENSOR_CONFIG` inventory tail now advertises individual telemetry
+with flag bit 2 (`4`). Existing mode bits 0 and 1 and the original six-byte reply
+prefix are unchanged. Configurator only requests individual state when this
+capability is present; stock and earlier custom firmware retain aggregate graphs
+and legacy CSV columns.
+
+Read-only `MSP2_INAV_MULTI_SENSOR_STATE` (`0x20A3`) returns version 1, 211 bytes,
+explicitly little-endian, with no structure padding:
+
+- Header (8 bytes): version U8, enabled-mode flags U8, IMU count U8=3,
+  barometer count U8=2, capture time U32 in microseconds.
+- Three physical-tag-ordered IMUs (51 bytes each): tag/type/flags U8 each;
+  gyro and accelerometer confidence U16 each (0..1000); both sample ages U32
+  microseconds; gyro XYZ I32 millidegrees/s; calibrated XYZ and raw XYZ
+  acceleration I32 millig. Sensor and board orientation are applied once.
+- Two barometers (25 bytes each): slot/type/flags U8 each, confidence U16,
+  age U32 microseconds; raw pressure, aligned pressure, temperature and
+  altitude I32 in Pa, Pa, hundredths of a degree C and centimetres.
+
+IMU flags: present=1, gyro valid=2, calibrated acceleration valid=4,
+calibration stored=8, raw acceleration valid=16, gyro contributor=32,
+accelerometer contributor=64. Barometer flags: present=1, pressure valid=2,
+altitude valid=4, fusion contributor=8. Valid data may have low confidence and
+not contribute to fusion; these are distinct states. Consumers must use validity
+flags rather than treating retained numerical values as current measurements.
+
+The shared snapshot copies existing acquisition/fusion state and performs no bus
+access. The Sensors tab shares one request between all enabled source graphs,
+caps polling at 20 Hz, and suppresses responses from a previous tab/poll session.
+
+### CSV
+
+In Logging, the existing raw-IMU checkbox includes all three physical IMUs and the
+existing altitude checkbox includes both barometers when the relevant multi mode
+is enabled. Headers are frozen at recording start; selecting both adds 86 columns
+alongside existing aggregate columns. Names include physical source, measurement
+and units (`imu1_gyro_x_dps`, `imu2_acc_z_g`, `baro1_pressure_pa`,
+`baro2_altitude_m`, etc.). Type, calibration, confidence, validity, contributor
+flags, sample ages, raw acceleration and individual barometer temperature are
+included. Failed/missing samples produce empty measurement cells, not stale
+aggregate values. Sampling waits for all requested responses and never overlaps
+itself. File appends are serialized; stop/tab cleanup flushes the final partial
+buffer. File-write errors stop polling and are reported.
+
+### Blackbox
+
+When multi mode is enabled, standard I/P frames append 20 possible fast fields:
+`imuGyroMdps[0..8]`, `imuAccMg[0..8]`, `baroPressurePa[0..1]`. Axis index is
+`physicalTag * 3 + axis`, with XYZ=0,1,2. The existing accelerometer logging
+selection also controls the individual calibrated/raw accelerometer fields.
+
+Standard S frames append up to 41 diagnostic fields: physical types, flags,
+confidence, sample ages, raw acceleration, aligned pressure, temperature and
+individual altitude. They are refreshed approximately at 10 Hz and on native
+slow-state changes, rather than repeating every diagnostic field at PID rate.
+Age is milliseconds capped at 65535 (also used for an absent source). Other units
+match telemetry. System headers document the multi-sensor format and units.
+Normal aggregate fields remain available. Logging flags, rather than retained
+numbers alone, determine measurement validity. Recording all sources increases
+log size and storage bandwidth; bench measurement is still required.
+
+Splitting fast/slow fields keeps frames compact for the official decoder's
+256-byte frame limit. The condition cache now grows with its enum instead of
+assuming all conditions fit in 64 bits. Two existing signed-shift operations in
+ZigZag encoding and little-endian U32 reading were made unsigned; wire bytes are
+unchanged, including negative and extreme signed inputs.
+
+### Verification of this follow-up
+
+- Configurator: 413 tests pass, including packets, graph sources/gaps/raw
+  calibration states, CSV schema, response ordering/cancellation and serialized
+  file writing/final flush.
+- Firmware: 141 focused/regression cases pass; 41 cases also pass ASan/UBSan.
+  Tests cover telemetry, exact 211-byte wire format, physical
+  tag order, signed units, board alignment, invalid/stale values, individual
+  barometer altitude caching and I/P/S Blackbox encoding.
+- A packet emitted by the production C serializer was parsed by the actual JS
+  parser with matching source identity and signed physical units.
+- A synthetic log emitted using production Blackbox field lists/encoders was
+  read by [official INAV blackbox-tools](https://github.com/iNavFlight/blackbox-tools):
+  1 I frame, 4 P frames and 2 S frames, no corrupt frames. Five CSV rows preserved
+  individual axes, pressure, hardware IDs, a confidence transition and negative
+  temperature. This is codec verification, not an on-board recording test or
+  confirmation of custom graph presentation in every Blackbox viewer.
+- ARM GCC syntax/type checks run for feature-enabled MATEKH743HD and ordinary
+  MATEKH743; no packaged firmware or Configurator build is part of this follow-up.
+
+Remaining checks: real connected Sensors UI, CSV recording through serial/USB,
+on-board Blackbox recording and playback, storage throughput, added CPU cost and
+long recordings. Existing user confirmation applies to fusion/calibration and
+the previous OSD/inventory build, not these new logging changes.

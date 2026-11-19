@@ -134,6 +134,7 @@
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
 #include "sensors/multi_sensor_msp.h"
+#include "sensors/multi_sensor_telemetry.h"
 #include "sensors/pitotmeter.h"
 #include "sensors/compass.h"
 #include "sensors/gyro.h"
@@ -1041,6 +1042,14 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         sbufWriteU8(dst, batteryMetersConfig()->capacity_unit);
         break;
 
+#ifdef USE_MULTI_SENSOR
+    case MSP2_INAV_MULTI_SENSOR_STATE: {
+        multiSensorTelemetry_t state;
+        multiSensorCaptureTelemetry(&state, micros());
+        multiSensorSerializeTelemetry(dst, &state);
+        break;
+    }
+#endif
     case MSP2_INAV_BATTERY2_STATE:
         sbufWriteU8(dst, isBattery2Present());
         sbufWriteU8(dst, getBattery2State());

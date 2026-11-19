@@ -526,6 +526,8 @@ main_sources(COMMON_SRC
     sensors/multi_sensor.h
     sensors/multi_sensor_msp.c
     sensors/multi_sensor_msp.h
+    sensors/multi_sensor_telemetry.c
+    sensors/multi_sensor_telemetry.h
     sensors/initialisation.c
     sensors/initialisation.h
     sensors/esc_sensor.c
@@ -542,6 +544,8 @@ main_sources(COMMON_SRC
     blackbox/blackbox_encoding.h
     blackbox/blackbox_io.c
     blackbox/blackbox_io.h
+    blackbox/multi_sensor_log.c
+    blackbox/multi_sensor_log.h
 
     cms/cms.c
     cms/cms.h

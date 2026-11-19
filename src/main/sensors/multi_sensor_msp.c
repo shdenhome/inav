@@ -15,7 +15,7 @@ void multiSensorSerializeInfo(sbuf_t *dst)
     sbufWriteU8(dst, 'M');
     sbufWriteU8(dst, 'S');
     sbufWriteU8(dst, 1);
-    sbufWriteU8(dst, (multiSensorImuEnabled() ? 1 : 0) | (multiSensorBaroEnabled() ? 2 : 0));
+    sbufWriteU8(dst, 4 | (multiSensorImuEnabled() ? 1 : 0) | (multiSensorBaroEnabled() ? 2 : 0)); // bit2: state telemetry supported
     sbufWriteU8(dst, gyroGetImuTag(0));
     for (unsigned tag = 0; tag < MULTI_IMU_COUNT; tag++) {
         sbufWriteU8(dst, multiSensorImuEnabled() ? multiAccGetHardware(tag) : ACC_NONE);

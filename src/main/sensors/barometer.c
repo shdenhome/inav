@@ -72,6 +72,7 @@ PG_RESET_TEMPLATE(barometerConfig_t, barometerConfig,
 static zeroCalibrationScalar_t zeroCalibration;
 static float baroGroundAltitude = 0;
 static float baroGroundPressure = 101325.0f; // 101325 pascal, 1 standard atmosphere
+static float pressureToAltitude(float pressure);
 
 bool baroDetect(baroDev_t *dev, baroSensor_e baroHardwareToUse)
 {
@@ -260,6 +261,8 @@ typedef struct multiBarometer_s {
     baroDev_t dev;
     uint32_t dueUs;
     int32_t temperature;
+    int32_t altitudeCm;
+    bool altitudeValid;
     bool detected;
     bool pressurePending;
     bool conversionStarted;
@@ -286,6 +289,20 @@ uint8_t baroGetSensorHardware(unsigned slot)
         return BARO_NONE;
     }
     return slot == 0 ? BARO_MS5611 : BARO_SPL06;
+}
+
+int32_t baroGetSensorTemperature(unsigned slot)
+{
+    return baroGetSensorHardware(slot) ? multiBarometer[slot].temperature : 0;
+}
+
+bool baroGetSensorAltitude(unsigned slot, int32_t *altitudeCm)
+{
+    if (!altitudeCm || !baroGetSensorHardware(slot) || !baroIsCalibrationComplete() || !multiBarometer[slot].altitudeValid) {
+        return false;
+    }
+    *altitudeCm = multiBarometer[slot].altitudeCm;
+    return true;
 }
 
 static bool multiBaroInit(void)
@@ -428,6 +445,15 @@ static uint32_t multiBaroUpdate(void)
     } else {
         multiBaroNewSample = false;
     }
+    // Compute per-source heights only on new conversions, outside the PID/log path.
+    for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) {
+        if (!baroIsCalibrationComplete() || !aligned[i].valid) {
+            multiBarometer[i].altitudeValid = false;
+        } else if (newPressure[i]) {
+            multiBarometer[i].altitudeCm = lrintf(pressureToAltitude(aligned[i].value[0]) - baroGroundAltitude);
+            multiBarometer[i].altitudeValid = true;
+        }
+    }
     return next < 1000 ? 1000 : next;
 }
 #endif
@@ -538,6 +564,7 @@ void baroStartCalibration(void)
         zeroCalibrationStartS(&multiBaroDifferenceCalibration, CALIBRATING_BARO_TIME_MS,
             fmaxf(1, acceptedPressureVariance * 2), false);
         sensorFusionReset(&multiBaroFusion);
+        for (unsigned i = 0; i < MULTI_BARO_COUNT; i++) multiBarometer[i].altitudeValid = false;
     }
 #endif
 }

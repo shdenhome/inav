@@ -62,9 +62,17 @@ set_property(SOURCE multi_gyro_unittest.cc PROPERTY depends
     "common/maths.c" "common/filter.c" "common/lulu.c" "sensors/boardalignment.c" "build/debug.c")
 set_property(SOURCE multi_gyro_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
 
+set_property(SOURCE multi_sensor_log_unittest.cc PROPERTY depends
+    "blackbox/multi_sensor_log.c" "blackbox/blackbox_encoding.c" "common/encoding.c")
+set_property(SOURCE multi_sensor_log_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_BLACKBOX)
+
 set_property(SOURCE multi_sensor_msp_unittest.cc PROPERTY depends
     "sensors/multi_sensor_msp.c" "sensors/multi_sensor.c" "common/streambuf.c")
 set_property(SOURCE multi_sensor_msp_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
+
+set_property(SOURCE multi_sensor_telemetry_unittest.cc PROPERTY depends
+    "sensors/multi_sensor_telemetry.c" "sensors/multi_sensor.c" "common/streambuf.c")
+set_property(SOURCE multi_sensor_telemetry_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
 
 set_property(SOURCE maths_unittest.cc PROPERTY depends "common/maths.c")
 
