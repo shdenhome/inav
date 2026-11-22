@@ -134,6 +134,7 @@
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
 #include "sensors/multi_sensor_msp.h"
+#include "sensors/multi_mag.h"
 #include "sensors/multi_sensor_telemetry.h"
 #include "sensors/pitotmeter.h"
 #include "sensors/compass.h"
@@ -1050,6 +1051,7 @@ static bool mspFcProcessOutCommand(uint16_t cmdMSP, sbuf_t *dst, mspPostProcessF
         break;
     }
 #endif
+
     case MSP2_INAV_BATTERY2_STATE:
         sbufWriteU8(dst, isBattery2Present());
         sbufWriteU8(dst, getBattery2State());
@@ -4872,6 +4874,16 @@ bool mspFCProcessInOutCommand(uint16_t cmdMSP, sbuf_t *dst, sbuf_t *src, mspResu
     const unsigned int dataSize = sbufBytesRemaining(src);
 
     switch (cmdMSP) {
+#ifdef USE_MULTI_MAG
+    case MSP2_INAV_MULTI_MAG_STATE: {
+        if (sbufBytesRemaining(src) != 0 && sbufBytesRemaining(src) != 3) { *ret = MSP_RESULT_ERROR; return true; }
+        const uint8_t cursor = sbufBytesRemaining(src) ? sbufReadU8(src) : 0;
+        const uint16_t generation = sbufBytesRemaining(src) ? sbufReadU16(src) : 0;
+        multiMagSerializeState(dst, cursor, generation);
+        *ret = MSP_RESULT_ACK;
+        return true;
+    }
+#endif
 
     case MSP_WP:
         mspFcWaypointOutCommand(dst, src);

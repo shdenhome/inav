@@ -105,6 +105,11 @@ typedef struct {
 
 static i2cState_t i2cState[I2CDEV_COUNT];
 
+bool i2cIsInitialized(I2CDevice device)
+{
+    return (unsigned)device < I2CDEV_COUNT && i2cState[device].initialised;
+}
+
 void i2cSetSpeed(uint8_t speed)
 {
     for (unsigned int i = 0; i < ARRAYLEN(i2cHardwareMap); i++) {

@@ -68,15 +68,22 @@ static bool lis2mdlInit(magDev_t *mag)
 
 static bool lis2mdlRead(magDev_t *mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     uint8_t status = 0;
     uint8_t buf[6];
 
-    mag->magADCRaw[X] = 0;
-    mag->magADCRaw[Y] = 0;
-    mag->magADCRaw[Z] = 0;
+    if (!mag->usePreconfiguredBus) {
+        mag->magADCRaw[X] = 0;
+        mag->magADCRaw[Y] = 0;
+        mag->magADCRaw[Z] = 0;
+    }
 
     bool ack = busRead(mag->busDev, LIS2MDL_REG_STATUS_REG, &status);
-    if (!ack || !(status & LIS2MDL_STATUS_ZYXDA)) {
+    if (!ack) {
+        return false;
+    }
+    if (!(status & LIS2MDL_STATUS_ZYXDA)) {
+        mag->readStatus = MAG_READ_NOT_READY;
         return false;
     }
 
@@ -94,6 +101,7 @@ static bool lis2mdlRead(magDev_t *mag)
     mag->magADCRaw[Y] = y;
     mag->magADCRaw[Z] = z;
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
@@ -116,7 +124,7 @@ static bool deviceDetect(magDev_t *mag)
 
 bool lis2mdlDetect(magDev_t *mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_I2C, DEVHW_LIS2MDL, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_I2C, DEVHW_LIS2MDL);
     if (mag->busDev == NULL) {
         return false;
     }

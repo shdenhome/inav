@@ -76,38 +76,35 @@
 #define CNTL_BIT_14_BIT                 0x00
 #define CNTL_BIT_16_BIT                 0x10
 
-static int16_t magGain[3];
-
 static bool ak8963Init(magDev_t * mag)
 {
-    bool ack;
-    UNUSED(ack);
-    uint8_t calibration[3];
+    bool initOk = true;
+    uint8_t calibration[3] = {0};
     uint8_t status;
 
-    ack = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_MODE_POWER_DOWN); // power down before entering fuse mode
+    initOk = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_MODE_POWER_DOWN) && initOk; // power down before entering fuse mode
     delay(20);
 
-    ack = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_MODE_FUSE_ROM); // Enter Fuse ROM access mode
+    initOk = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_MODE_FUSE_ROM) && initOk; // Enter Fuse ROM access mode
     delay(10);
 
-    ack = busReadBuf(mag->busDev, AK8963_MAG_REG_ASAX, calibration, sizeof(calibration)); // Read the x-, y-, and z-axis calibration values
+    initOk = busReadBuf(mag->busDev, AK8963_MAG_REG_ASAX, calibration, sizeof(calibration)) && initOk; // Read the x-, y-, and z-axis calibration values
     delay(10);
 
-    magGain[X] = calibration[X] + 128;
-    magGain[Y] = calibration[Y] + 128;
-    magGain[Z] = calibration[Z] + 128;
+    mag->factoryGain[X] = calibration[X] + 128;
+    mag->factoryGain[Y] = calibration[Y] + 128;
+    mag->factoryGain[Z] = calibration[Z] + 128;
 
-    ack = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_MODE_POWER_DOWN); // power down after reading.
+    initOk = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_MODE_POWER_DOWN) && initOk; // power down after reading.
     delay(10);
 
     // Clear status registers
-    ack = busRead(mag->busDev, AK8963_MAG_REG_STATUS1, &status);
-    ack = busRead(mag->busDev, AK8963_MAG_REG_STATUS2, &status);
+    initOk = busRead(mag->busDev, AK8963_MAG_REG_STATUS1, &status) && initOk;
+    initOk = busRead(mag->busDev, AK8963_MAG_REG_STATUS2, &status) && initOk;
 
-    ack = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_BIT_16_BIT | CNTL_MODE_ONCE);
+    initOk = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_BIT_16_BIT | CNTL_MODE_ONCE) && initOk;
 
-    return true;
+    return !mag->usePreconfiguredBus || initOk;
 }
 
 static int16_t parseMag(uint8_t *raw, int16_t gain) {
@@ -117,12 +114,17 @@ static int16_t parseMag(uint8_t *raw, int16_t gain) {
 
 static bool ak8963Read(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     bool ack = false;
     uint8_t buf[7];
 
     ack = busRead(mag->busDev, AK8963_MAG_REG_STATUS1, &buf[0]);
 
-    if (!ack || (buf[0] & STATUS1_DATA_READY) == 0) {
+    if (!ack) {
+        return false;
+    }
+    if ((buf[0] & STATUS1_DATA_READY) == 0) {
+        mag->readStatus = MAG_READ_NOT_READY;
         return false;
     }
 
@@ -134,14 +136,15 @@ static bool ak8963Read(magDev_t * mag)
 
     ack = busWrite(mag->busDev, AK8963_MAG_REG_CNTL, CNTL_BIT_16_BIT | CNTL_MODE_ONCE);
 
-    if (buf[6] & STATUS2_MAG_SENSOR_OVERFLOW) {
+    if ((mag->usePreconfiguredBus && !ack) || (buf[6] & STATUS2_MAG_SENSOR_OVERFLOW)) {
         return false;
     }
 
-    mag->magADCRaw[X] = -parseMag(buf + 0, magGain[X]);
-    mag->magADCRaw[Y] = parseMag(buf + 2, magGain[Y]);
-    mag->magADCRaw[Z] = -parseMag(buf + 4, magGain[Z]);
+    mag->magADCRaw[X] = -parseMag(buf + 0, mag->factoryGain[X]);
+    mag->magADCRaw[Y] = parseMag(buf + 2, mag->factoryGain[Y]);
+    mag->magADCRaw[Z] = -parseMag(buf + 4, mag->factoryGain[Z]);
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
@@ -164,7 +167,7 @@ static bool deviceDetect(magDev_t * mag)
 
 bool ak8963Detect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_AK8963, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_ANY, DEVHW_AK8963);
     if (mag->busDev == NULL) {
         return false;
     }

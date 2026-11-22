@@ -41,6 +41,8 @@ main_sources(COMMON_SRC
     common/olc.h
     common/printf.c
     common/printf.h
+    common/mag_fusion.c
+    common/mag_fusion.h
     common/sensor_fusion.c
     common/sensor_fusion.h
     common/sensor_trust.c
@@ -407,6 +409,8 @@ main_sources(COMMON_SRC
     io/headtracker_msp.h
     io/osd_dji_hd.c
     io/osd_dji_hd.h
+    io/osd_multi_mag.c
+    io/osd_multi_mag.h
     io/osd_sensor_trust.c
     io/osd_sensor_trust.h
     io/lights.c
@@ -522,6 +526,8 @@ main_sources(COMMON_SRC
     sensors/gyro.h
     sensors/multi_acc.c
     sensors/multi_acc.h
+    sensors/multi_mag.c
+    sensors/multi_mag.h
     sensors/multi_sensor.c
     sensors/multi_sensor.h
     sensors/multi_sensor_msp.c
@@ -544,6 +550,8 @@ main_sources(COMMON_SRC
     blackbox/blackbox_encoding.h
     blackbox/blackbox_io.c
     blackbox/blackbox_io.h
+    blackbox/multi_mag_log.c
+    blackbox/multi_mag_log.h
     blackbox/multi_sensor_log.c
     blackbox/multi_sensor_log.h
 

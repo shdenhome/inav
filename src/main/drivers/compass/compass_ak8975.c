@@ -63,31 +63,30 @@
 
 static bool ak8975Init(magDev_t * mag)
 {
-    bool ack;
+    bool initOk = true;
     uint8_t buffer[3];
     uint8_t status;
 
-    UNUSED(ack);
 
-    ack = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x00); // power down before entering fuse mode
+    initOk = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x00) && initOk; // power down before entering fuse mode
     delay(20);
 
-    ack = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x0F); // Enter Fuse ROM access mode
+    initOk = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x0F) && initOk; // Enter Fuse ROM access mode
     delay(10);
 
-    ack = busReadBuf(mag->busDev, AK8975A_ASAX, &buffer[0], 3); // Read the x-, y-, and z-axis calibration values
+    initOk = busReadBuf(mag->busDev, AK8975A_ASAX, &buffer[0], 3) && initOk; // Read the x-, y-, and z-axis calibration values
     delay(10);
 
-    ack = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x00); // power down after reading.
+    initOk = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x00) && initOk; // power down after reading.
     delay(10);
 
     // Clear status registers
-    ack = busRead(mag->busDev, AK8975_MAG_REG_STATUS1, &status);
-    ack = busRead(mag->busDev, AK8975_MAG_REG_STATUS2, &status);
+    initOk = busRead(mag->busDev, AK8975_MAG_REG_STATUS1, &status) && initOk;
+    initOk = busRead(mag->busDev, AK8975_MAG_REG_STATUS2, &status) && initOk;
 
     // Trigger first measurement
-    ack = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x01);
-    return true;
+    initOk = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x01) && initOk;
+    return !mag->usePreconfiguredBus || initOk;
 }
 
 #define BIT_STATUS1_REG_DATA_READY              (1 << 0)
@@ -97,23 +96,36 @@ static bool ak8975Init(magDev_t * mag)
 
 static bool ak8975Read(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     uint8_t status;
     uint8_t buf[6];
 
     // set magData to zero for case of failed read
-    mag->magADCRaw[X] = 0;
-    mag->magADCRaw[Y] = 0;
-    mag->magADCRaw[Z] = 0;
+    if (!mag->usePreconfiguredBus) {
+        mag->magADCRaw[X] = 0;
+        mag->magADCRaw[Y] = 0;
+        mag->magADCRaw[Z] = 0;
+    }
 
     bool ack = busRead(mag->busDev, AK8975_MAG_REG_STATUS1, &status);
-    if (!ack || (status & BIT_STATUS1_REG_DATA_READY) == 0) {
+    if (!ack) {
+        return false;
+    }
+    if ((status & BIT_STATUS1_REG_DATA_READY) == 0) {
+        mag->readStatus = MAG_READ_NOT_READY;
         return false;
     }
 
     ack = busReadBuf(mag->busDev, AK8975_MAG_REG_HXL, buf, 6); // read from AK8975_MAG_REG_HXL to AK8975_MAG_REG_HZH
+    if (!ack) {
+        return false;
+    }
     ack = busRead(mag->busDev, AK8975_MAG_REG_STATUS2, &status);
 
-    if (!ack || (status & BIT_STATUS2_REG_DATA_ERROR) || (status & BIT_STATUS2_REG_MAG_SENSOR_OVERFLOW)) {
+    if (!ack) {
+        return false;
+    }
+    if ((status & BIT_STATUS2_REG_DATA_ERROR) || (status & BIT_STATUS2_REG_MAG_SENSOR_OVERFLOW)) {
         return false;
     }
 
@@ -122,6 +134,10 @@ static bool ak8975Read(magDev_t * mag)
     mag->magADCRaw[Z] = -(int16_t)(buf[5] << 8 | buf[4]) * 4;
 
     ack = busWrite(mag->busDev, AK8975_MAG_REG_CNTL, 0x01); // start reading again
+    if (mag->usePreconfiguredBus && !ack) {
+        return false;
+    }
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
@@ -144,7 +160,7 @@ static bool deviceDetect(magDev_t * mag)
 
 bool ak8975Detect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_I2C, DEVHW_AK8975, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_I2C, DEVHW_AK8975);
     if (mag->busDev == NULL) {
         return false;
     }

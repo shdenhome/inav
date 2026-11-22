@@ -110,24 +110,29 @@
 
 static bool ist8310Init(magDev_t * mag)
 {
+    bool initOk = true;
     // A reboot without a power cycle leaves the chip as it was, and it may never measure again
-    busWrite(mag->busDev, IST8310_REG_CNTRL2, IST8310_CNTRL2_RESET);
+    initOk = busWrite(mag->busDev, IST8310_REG_CNTRL2, IST8310_CNTRL2_RESET) && initOk;
     delay(50);  // power-on reset routine: 50 ms max
 
-    busWrite(mag->busDev, IST8310_REG_AVERAGE, IST8310_AVG_16);
+    initOk = busWrite(mag->busDev, IST8310_REG_AVERAGE, IST8310_AVG_16) && initOk;
     delay(5);
 
-    busWrite(mag->busDev, IST8310_REG_PDCNTL, IST8310_PULSE_DURATION_NORMAL);
+    initOk = busWrite(mag->busDev, IST8310_REG_PDCNTL, IST8310_PULSE_DURATION_NORMAL) && initOk;
     delay(5);
 
     // Single measurement is the only mode the datasheet defines besides stand-by
-    busWrite(mag->busDev, IST8310_REG_CNTRL1, IST8310_ODR_SINGLE);
+    initOk = busWrite(mag->busDev, IST8310_REG_CNTRL1, IST8310_ODR_SINGLE) && initOk;
 
-    return true;
+    if (mag->usePreconfiguredBus) {
+        mag->nextReadAtUs = micros() + 20000;
+    }
+    return !mag->usePreconfiguredBus || initOk;
 }
 
 static bool ist8310Read(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     // STAT1 and the data in one read: in single measurement mode the data only changes after a trigger
     uint8_t buf[7];
     if (!busReadBuf(mag->busDev, IST8310_REG_STAT1, buf, 7)) {
@@ -142,16 +147,28 @@ static bool ist8310Read(magDev_t * mag)
     // Past the measuring range a sample can only be corrupt, and one spoils a compass calibration
     const bool inRange = ABS(x) <= IST8310_RANGE_XY && ABS(y) <= IST8310_RANGE_XY && ABS(z) <= IST8310_RANGE_Z;
 
-    if ((buf[0] & IST8310_DRDY_MASK) && inRange) {
+    mag->readStatus = !(buf[0] & IST8310_DRDY_MASK) ? MAG_READ_NOT_READY :
+        (inRange ? MAG_READ_READY : MAG_READ_ERROR);
+    if (mag->readStatus == MAG_READ_READY) {
         // Invert Y axis to convert from left to right coordinate system
         mag->magADCRaw[X] =  x;
         mag->magADCRaw[Y] = -y;
         mag->magADCRaw[Z] =  z;
     }
 
-    // Also restarts a measurement that never completed: the task is far slower than its 6 ms
-    busWrite(mag->busDev, IST8310_REG_CNTRL1, IST8310_ODR_SINGLE);
-
+    // Legacy assumes a task slower than the conversion. Multi-MAG can poll faster:
+    // do not keep restarting an unfinished conversion; recover after 20 ms instead.
+    if (mag->usePreconfiguredBus && mag->readStatus == MAG_READ_NOT_READY &&
+        (int32_t)(micros() - mag->nextReadAtUs) < 0) {
+        return true;
+    }
+    if (mag->usePreconfiguredBus) {
+        mag->nextReadAtUs = micros() + 20000;
+    }
+    if (!busWrite(mag->busDev, IST8310_REG_CNTRL1, IST8310_ODR_SINGLE) && mag->usePreconfiguredBus) {
+        mag->readStatus = MAG_READ_ERROR;
+        return false;
+    }
     return true;
 }
 
@@ -175,10 +192,11 @@ static bool deviceDetect(magDev_t * mag)
 bool ist8310Detect(magDev_t * mag)
 {
     for (uint8_t index = 0; index < 2; ++index) {
-        mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_IST8310_0 + index, mag->magSensorToUse, OWNER_COMPASS);
-        if (mag->busDev == NULL) {
+        busDevice_t *candidate = magBusDeviceInit(mag, BUSTYPE_ANY, DEVHW_IST8310_0 + index);
+        if (!candidate) {
             continue;
         }
+        mag->busDev = candidate;
 
         if (deviceDetect(mag)) {
             mag->init = ist8310Init;

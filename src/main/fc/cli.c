@@ -121,6 +121,7 @@ bool cliMode = false;
 #include "sensors/diagnostics.h"
 #include "sensors/gyro.h"
 #include "sensors/multi_sensor.h"
+#include "sensors/multi_mag.h"
 #include "sensors/multi_acc.h"
 #include "sensors/pitotmeter.h"
 #include "sensors/rangefinder.h"
@@ -4324,6 +4325,30 @@ static void cliStatus(char *cmdline)
                 i == 0 ? "MS5611" : "SPL06", (int)lrintf(multiBaroFusion.member[i].confidence * 1000),
                 multiBaroFusion.member[i].usable, (int)multiBaroSamples[i].value[0], (int)lrintf(baroGetPressureOffset(i)),
                 (unsigned)((uint32_t)micros() - multiBaroSamples[i].timestampUs));
+        }
+    }
+#endif
+
+#ifdef USE_MULTI_MAG
+    if (multiMagEnabled()) {
+        cliPrintLinef("Multi MAG: detected=%u healthy=%u calibrating=%u reference=0x%06x fallback=0x%06x",
+            multiMagCount(), multiMagIsHealthy(), multiMagIsCalibrating(),
+            (unsigned)multiMagReferenceId(), (unsigned)multiMagFallbackId());
+        const uint32_t captureUs = micros();
+        for (unsigned i = 0; i < MULTI_MAG_MAX_SOURCES; i++) {
+            multiMagSourceState_t source;
+            if (!multiMagCaptureSource(i, captureUs, &source)) {
+                continue;
+            }
+            cliPrintLinef("  MAG %u id=0x%06x hardware=%u I2C%u address=0x%02x confidence=%u/1000 age=%u us flags=0x%03x",
+                source.slot + 1, (unsigned)source.id, source.hardware, source.bus, source.address,
+                source.confidence, (unsigned)source.ageUs, source.flags);
+            cliPrintLinef("    calibration=%u error=%u samples=%u orientation=%d,%d,%d quality=%u",
+                source.calibrationStatus, source.failureCode, source.sampleCount,
+                source.angles[0], source.angles[1], source.angles[2], source.orientationQuality);
+            char x[18], y[18], z[18];
+            cliPrintLinef("    aligned: %s %s %s", ftoa(source.aligned[0], x),
+                ftoa(source.aligned[1], y), ftoa(source.aligned[2], z));
         }
     }
 #endif

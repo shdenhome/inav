@@ -275,3 +275,63 @@ TEST_F(CompassOrientationTest, RejectsZeroMagGainInsteadOfNaN)
     EXPECT_FALSE(ok);
     EXPECT_FALSE(isnan(confidence));
 }
+
+TEST_F(CompassOrientationTest, IndependentMultiContextsRecoverAllSixFacesAndEightYawPositions)
+{
+    const Candidate faces[]={{0,0,0},{1800,0,0},{900,0,0},{2700,0,0},{0,900,0},{0,2700,0}};
+    const auto attitudes=diverseAttitudes(80);
+    compassOrientationContext_t first{},second{};
+    first.extendedCandidates=second.extendedCandidates=true;
+    for(const auto &face:faces)for(int yaw=0;yaw<3600;yaw+=450){
+        Candidate wanted=face;wanted.yawDD=yaw;
+        compassOrientationContextReset(&first);
+        compassOrientationContextReset(&second);
+        for(const auto &q:attitudes){
+            int16_t raw[3];synthesizeSample(wanted,q,raw);compassOrientationContextPush(&first,raw,&q);
+            synthesizeSample(kCandidates[3],q,raw);compassOrientationContextPush(&second,raw,&q);
+        }
+        int16_t roll=0,pitch=0,heading=0;float confidence=0;
+        ASSERT_TRUE(compassOrientationContextDetect(&first,kMagZero,kMagGain,2,&roll,&pitch,&heading,&confidence));
+        const fpMat3_t expected=candidateRotation(wanted),actual=candidateRotation({roll,pitch,heading});
+        for(int i=0;i<3;i++)for(int j=0;j<3;j++)EXPECT_NEAR(expected.m[i][j],actual.m[i][j],0.0001f);
+        ASSERT_TRUE(compassOrientationContextDetect(&second,kMagZero,kMagGain,2,&roll,&pitch,&heading,&confidence));
+        EXPECT_EQ(roll,kCandidates[3].rollDD);EXPECT_EQ(pitch,kCandidates[3].pitchDD);EXPECT_EQ(heading,kCandidates[3].yawDD);
+        compassOrientationContextReset(&first);
+        EXPECT_FALSE(compassOrientationContextDetect(&first,kMagZero,kMagGain,2,&roll,&pitch,&heading,&confidence));
+        EXPECT_TRUE(compassOrientationContextDetect(&second,kMagZero,kMagGain,2,&roll,&pitch,&heading,&confidence));
+    }
+}
+
+TEST_F(CompassOrientationTest, ExtendedSearchRejectsObliqueMountDespiteGoodRelativeConfidence)
+{
+    for(int tilt:{200,250,300}) {
+        compassOrientationContext_t context{};context.extendedCandidates=true;
+        for(const auto &q:diverseAttitudes(100)) {
+            int16_t raw[3];synthesizeSample({(int16_t)tilt,0,0},q,raw);
+            compassOrientationContextPush(&context,raw,&q);
+        }
+        int16_t roll=123,pitch=123,yaw=123;float confidence=0;
+        EXPECT_FALSE(compassOrientationContextDetect(&context,kMagZero,kMagGain,2,&roll,&pitch,&yaw,&confidence));
+        EXPECT_EQ(roll,123);
+    }
+}
+TEST_F(CompassOrientationTest, ExtendedSearchAcceptsDiscreteMountWithModerateNoise)
+{
+    compassOrientationContext_t context{};context.extendedCandidates=true;unsigned i=0;
+    for(const auto &q:diverseAttitudes(100)) {
+        int16_t raw[3];synthesizeSample({900,0,450},q,raw);
+        for(int axis=0;axis<3;axis++) raw[axis]+=((i++*13)%31)-15;
+        compassOrientationContextPush(&context,raw,&q);
+    }
+    int16_t roll,pitch,yaw;float confidence;
+    ASSERT_TRUE(compassOrientationContextDetect(&context,kMagZero,kMagGain,2,&roll,&pitch,&yaw,&confidence));
+    EXPECT_EQ(roll,900);EXPECT_EQ(pitch,0);EXPECT_EQ(yaw,450);
+}
+TEST_F(CompassOrientationTest, ExtendedSearchRejectsUnchangingExactFit)
+{
+    compassOrientationContext_t context{};context.extendedCandidates=true;
+    const fpQuaternion_t q=eulerToQuat(0,0,0);int16_t raw[3]={1024,0,0};
+    for(unsigned i=0;i<80;i++)compassOrientationContextPush(&context,raw,&q);
+    int16_t roll,pitch,yaw;float confidence;
+    EXPECT_FALSE(compassOrientationContextDetect(&context,kMagZero,kMagGain,2,&roll,&pitch,&yaw,&confidence));
+}

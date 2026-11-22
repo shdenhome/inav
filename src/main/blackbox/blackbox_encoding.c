@@ -288,7 +288,7 @@ void blackboxWriteTag8_4S16(int32_t *values)
         case FIELD_4BIT:
             if (nibbleIndex == 0) {
                 //We fill high-bits first
-                buffer = values[x] << 4;
+                buffer = (uint32_t)values[x] << 4;
                 nibbleIndex = 1;
             } else {
                 blackboxWrite(buffer | (values[x] & 0x0F));
@@ -302,7 +302,7 @@ void blackboxWriteTag8_4S16(int32_t *values)
                 //Write the high bits of the value first (mask to avoid sign extension)
                 blackboxWrite(buffer | ((values[x] >> 4) & 0x0F));
                 //Now put the leftover low bits into the top of the next buffer entry
-                buffer = values[x] << 4;
+                buffer = (uint32_t)values[x] << 4;
             }
             break;
         case FIELD_16BIT:
@@ -316,7 +316,7 @@ void blackboxWriteTag8_4S16(int32_t *values)
                 // Then the middle 8
                 blackboxWrite(values[x] >> 4);
                 //Only the smallest 4 bits are still left to write
-                buffer = values[x] << 4;
+                buffer = (uint32_t)values[x] << 4;
             }
             break;
         }

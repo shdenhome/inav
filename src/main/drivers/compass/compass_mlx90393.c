@@ -80,7 +80,7 @@
 #define RES_XYZ_OSR_FLT_REG_VALUE   0x001D
 
 
-static void mlx90393WriteRegister(magDev_t * mag, uint8_t reg_val, uint16_t value) {
+static bool mlx90393WriteRegister(magDev_t * mag, uint8_t reg_val, uint16_t value) {
 
     uint8_t buf[REG_BUF_LEN] = {0};
 
@@ -88,20 +88,21 @@ static void mlx90393WriteRegister(magDev_t * mag, uint8_t reg_val, uint16_t valu
     buf[1] = (value >> 0) & 0xFF;
     buf[2] = reg_val;
 
-    busWriteBuf(mag->busDev, MLX90393_WRITE_REGISTER, buf, REG_BUF_LEN);
+    const bool written = busWriteBuf(mag->busDev, MLX90393_WRITE_REGISTER, buf, REG_BUF_LEN);
 
     // PAUSE
     delay(20);
     // To skip ACK FLAG of Write
     uint8_t sig = 0;
-    busRead(mag->busDev, MLX90393_NOP, &sig);
+    const bool read = busRead(mag->busDev, MLX90393_NOP, &sig);
 
-    return;
+    return written && read && !(sig & MLX90393_ERROR_FLAG);
 }
 
 // =======================================================================================
 static bool mlx90393Read(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
 
     uint8_t buf[7] = {0};
 
@@ -109,10 +110,27 @@ static bool mlx90393Read(magDev_t * mag)
         return false;
     }
 
+    if (mag->usePreconfiguredBus) {
+        // RM reports ERROR when DRDY is low (Melexis datasheet section 15.2).
+        // A successful I2C transfer alone therefore never proves freshness.
+        if (!(buf[0] & MLX90393_BURST_MODE_FLAG) || (buf[0] & MLX90393_RESET_FLAG)) {
+            return false;
+        }
+        if (buf[0] & MLX90393_ERROR_FLAG) {
+            mag->readStatus = MAG_READ_NOT_READY;
+            return false;
+        }
+        // D[1:0]=2 denotes six data bytes after a read-measurement command.
+        if ((buf[0] & (MLX90393_D1_FLAG | MLX90393_D0_FLAG)) != MLX90393_D1_FLAG) {
+            return false;
+        }
+    }
+
     mag->magADCRaw[X] = ((short)(buf[1] << 8 | buf[2]));
     mag->magADCRaw[Y] = ((short)(buf[3] << 8 | buf[4]));
     mag->magADCRaw[Z] = ((short)(buf[5] << 8 | buf[6]));
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 
 }
@@ -136,29 +154,30 @@ static bool deviceDetect(magDev_t * mag)
 static bool mlx90393Init(magDev_t * mag)
 {
     uint8_t sig = 0;
+    bool initOk = true;
 
     delay(20);
     // Remove reset flag
-    busRead(mag->busDev, MLX90393_NOP, &sig);
+    initOk = busRead(mag->busDev, MLX90393_NOP, &sig) && !(sig & MLX90393_ERROR_FLAG) && initOk;
     // Exit if already in burst mode. (For example when external i2c source power the bus.)
-    busRead(mag->busDev, MLX90393_EXIT_MODE, &sig);
+    initOk = busRead(mag->busDev, MLX90393_EXIT_MODE, &sig) && !(sig & MLX90393_ERROR_FLAG) && initOk;
 
     // Writing Registers
-    mlx90393WriteRegister(mag, GAIN_SEL_HALLCONF_REG, GAIN_SEL_HALLCONF_REG_VALUE);
-    mlx90393WriteRegister(mag, TCMP_EN_REG, TCMP_EN_REG_VALUE);
-    mlx90393WriteRegister(mag, RES_XYZ_OSR_FLT_REG, RES_XYZ_OSR_FLT_REG_VALUE);
+    initOk = mlx90393WriteRegister(mag, GAIN_SEL_HALLCONF_REG, GAIN_SEL_HALLCONF_REG_VALUE) && initOk;
+    initOk = mlx90393WriteRegister(mag, TCMP_EN_REG, TCMP_EN_REG_VALUE) && initOk;
+    initOk = mlx90393WriteRegister(mag, RES_XYZ_OSR_FLT_REG, RES_XYZ_OSR_FLT_REG_VALUE) && initOk;
 
     // Start burst mode
-    busRead(mag->busDev, MLX90393_START_BURST_MODE | MLX90393_MEASURE_3D, &sig);
+    initOk = busRead(mag->busDev, MLX90393_START_BURST_MODE | MLX90393_MEASURE_3D, &sig) && !(sig & MLX90393_ERROR_FLAG) && initOk;
 
-    return true;
+    return !mag->usePreconfiguredBus || initOk;
 }
 
 // ==========================================================================
 
 bool mlx90393Detect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_MLX90393, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_ANY, DEVHW_MLX90393);
     if (mag->busDev == NULL) {
         return false;
     }

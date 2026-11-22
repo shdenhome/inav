@@ -138,7 +138,8 @@
 #define PG_DRONECAN_DNA_SERVER 1047     // Separate PG so we don't wipe user settings if the allocation table changes
 #define PG_BATTERY2_CONFIG 1048
 #define PG_MULTI_SENSOR_CONFIG 1049
-#define PG_INAV_END PG_MULTI_SENSOR_CONFIG
+#define PG_MULTI_MAG_CONFIG 1050
+#define PG_INAV_END PG_MULTI_MAG_CONFIG
 
 // OSD configuration (subject to change)
 //#define PG_OSD_FONT_CONFIG 2047

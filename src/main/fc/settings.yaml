@@ -251,6 +251,65 @@ constants:
 
 
 groups:
+  - name: PG_MULTI_MAG_CONFIG
+    type: multiMagConfig_t
+    headers: ["sensors/multi_mag.h"]
+    condition: USE_MULTI_MAG
+    members:
+      - name: multi_mag_enabled
+        description: "Read all supported I2C magnetometers on initialized buses, with independent calibration, orientation and confidence. Reboot required."
+        field: enabled
+        type: bool
+        default_value: OFF
+      - name: multi_mag_max_age_ms
+        description: "Maximum usable MAG sample age in milliseconds."
+        field: maxAgeMs
+        min: 20
+        max: 5000
+        default_value: 250
+      - name: multi_mag_reject_ms
+        description: "Persistent magnetic outlier confirmation time before zero trust."
+        field: rejectMs
+        min: 0
+        max: 2000
+        default_value: 100
+      - name: multi_mag_good_ms
+        description: "Continuous good samples required to leave MAG quarantine."
+        field: goodMs
+        min: 0
+        max: 10000
+        default_value: 1000
+      - name: multi_mag_recovery_ms
+        description: "MAG confidence recovery time constant."
+        field: recoveryMs
+        min: 100
+        max: 60000
+        default_value: 5000
+      - name: multi_mag_agreement_deg
+        description: "Normal agreement angle in degrees."
+        field: agreementDegrees
+        min: 1
+        max: 60
+        default_value: 20
+      - name: multi_mag_reject_deg
+        description: "MAG disagreement quarantine threshold; must exceed agreement angle."
+        field: rejectDegrees
+        min: 2
+        max: 179
+        default_value: 45
+      - name: multi_mag_field_min_percent
+        description: "Minimum magnetic magnitude percentage of calibrated reference1024."
+        field: fieldMinPercent
+        min: 1
+        max: 100
+        default_value: 35
+      - name: multi_mag_field_max_percent
+        description: "Maximum magnetic magnitude percentage of calibrated reference1024."
+        field: fieldMaxPercent
+        min: 101
+        max: 1000
+        default_value: 250
+
   - name: PG_MULTI_SENSOR_CONFIG
     type: multiSensorConfig_t
     headers: ["sensors/multi_sensor.h"]

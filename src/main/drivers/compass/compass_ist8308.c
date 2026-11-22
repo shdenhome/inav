@@ -104,11 +104,12 @@ static bool ist8308Init(magDev_t * mag)
     ack = ack && busWrite(mag->busDev, IST8308_REG_CNTRL4,    IST8308_SENSITIVITY_6_6);
     delay(5);
 
-    return true;
+    return !mag->usePreconfiguredBus || ack;
 }
 
 static bool ist8308Read(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     const float LSB2FSV = 1.5; // 1.5mG
 
     uint8_t status = 0;
@@ -122,6 +123,7 @@ static bool ist8308Read(magDev_t * mag)
     // across axes, corrupting the mag vector and calibration. When no fresh sample
     // is ready, return success so the caller keeps the previous values.
     if (!(status & IST8308_DRDY_MASK)) {
+        mag->readStatus = MAG_READ_NOT_READY;
         return true;
     }
 
@@ -137,6 +139,7 @@ static bool ist8308Read(magDev_t * mag)
     mag->magADCRaw[Y] = -(int16_t)(buf[3] << 8 | buf[2]) * LSB2FSV;
     mag->magADCRaw[Z] = (int16_t)(buf[5] << 8 | buf[4]) * LSB2FSV;
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
@@ -159,7 +162,7 @@ static bool deviceDetect(magDev_t * mag)
 
 bool ist8308Detect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_IST8308, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_ANY, DEVHW_IST8308);
     if (mag->busDev == NULL) {
         return false;
     }

@@ -106,23 +106,30 @@
 
 static bool lis3mdlRead(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     bool ack;
 	uint8_t status = 0;
 
 	ack = busRead(mag->busDev, LIS3MDL_REG_STATUS_REG, &status);
 
-	if ( !( ack && ( ( status & 0x08 ) >> 3 ) ) ) {
-		return false;
-	}
+    if (!ack) {
+        return false;
+    }
+    if (!(status & 0x08)) {
+        mag->readStatus = MAG_READ_NOT_READY;
+        return false;
+    }
 
 	uint8_t buf[6];
 
     ack = busReadBuf(mag->busDev, LIS3MDL_REG_OUT_X_L, buf, 6);
 
     if (!ack) {
-        mag->magADCRaw[X] = 0;
-        mag->magADCRaw[Y] = 0;
-        mag->magADCRaw[Z] = 0;
+        if (!mag->usePreconfiguredBus) {
+            mag->magADCRaw[X] = 0;
+            mag->magADCRaw[Y] = 0;
+            mag->magADCRaw[Z] = 0;
+        }
         return false;
     }
 
@@ -130,6 +137,7 @@ static bool lis3mdlRead(magDev_t * mag)
     mag->magADCRaw[Y] = (int16_t)(buf[3] << 8 | buf[2]) / 4;
     mag->magADCRaw[Z] = (int16_t)(buf[5] << 8 | buf[4]) / 4;
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
@@ -152,18 +160,19 @@ static bool deviceDetect(magDev_t * mag)
 
 static bool lis3mdlInit(magDev_t *mag)
 {
-	busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG2, LIS3MDL_FS_4GAUSS);   // Configuration Register 2
-    busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG1, LIS3MDL_TEMP_EN | LIS3MDL_OM_ULTRA_HI_PROF | LIS3MDL_DO_80);   // Configuration Register 1
-    busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG5, LIS3MDL_BDU);   // Configuration Register 5
-    busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG4, LIS3MDL_ZOM_UHP);   // Configuration Register 4
-    busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG3, 0x00);   // Configuration Register 3
+    bool initOk = true;
+	initOk = busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG2, LIS3MDL_FS_4GAUSS) && initOk;   // Configuration Register 2
+    initOk = busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG1, LIS3MDL_TEMP_EN | LIS3MDL_OM_ULTRA_HI_PROF | LIS3MDL_DO_80) && initOk;   // Configuration Register 1
+    initOk = busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG5, LIS3MDL_BDU) && initOk;   // Configuration Register 5
+    initOk = busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG4, LIS3MDL_ZOM_UHP) && initOk;   // Configuration Register 4
+    initOk = busWrite(mag->busDev, LIS3MDL_REG_CTRL_REG3, 0x00) && initOk;   // Configuration Register 3
 
-    return true;
+    return !mag->usePreconfiguredBus || initOk;
 }
 
 bool lis3mdlDetect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_I2C, DEVHW_LIS3MDL, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_I2C, DEVHW_LIS3MDL);
     if (mag->busDev == NULL) {
         return false;
     }

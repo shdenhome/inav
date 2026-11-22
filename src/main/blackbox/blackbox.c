@@ -27,6 +27,7 @@
 #include "blackbox.h"
 #include "blackbox_encoding.h"
 #include "multi_sensor_log.h"
+#include "multi_mag_log.h"
 #include "sensors/multi_sensor.h"
 #include "sensors/multi_acc.h"
 #include "common/bitarray.h"
@@ -469,6 +470,8 @@ static const blackboxDeltaFieldDefinition_t blackboxMainFields[] = {
     MULTI_SENSOR_MAIN_LOG_FIELDS(MULTI_FIELD)
 #undef MULTI_FIELD
 #endif
+
+
 };
 
 #ifdef USE_GPS
@@ -555,6 +558,16 @@ static const blackboxConditionalFieldDefinition_t blackboxSlowFields[] = {
     MULTI_SENSOR_SLOW_LOG_FIELDS(MULTI_SLOW_FIELD)
 #undef MULTI_SLOW_FIELD
 #endif
+#ifdef USE_MULTI_MAG
+#define MAG_FIELD(slot) \
+    {"magSourceX", slot, SIGNED, PREDICT(0), ENCODING(TAG8_4S16), FLIGHT_LOG_FIELD_CONDITION_MULTI_MAG_ ## slot}, \
+    {"magSourceY", slot, SIGNED, PREDICT(0), ENCODING(TAG8_4S16), FLIGHT_LOG_FIELD_CONDITION_MULTI_MAG_ ## slot}, \
+    {"magSourceZ", slot, SIGNED, PREDICT(0), ENCODING(TAG8_4S16), FLIGHT_LOG_FIELD_CONDITION_MULTI_MAG_ ## slot}, \
+    {"magSourceQuality", slot, SIGNED, PREDICT(0), ENCODING(TAG8_4S16), FLIGHT_LOG_FIELD_CONDITION_MULTI_MAG_ ## slot},
+    MULTI_MAG_LOG_FIELDS(MAG_FIELD)
+#undef MAG_FIELD
+#endif
+
 };
 
 #define BLACKBOX_FIRST_HEADER_SENDING_STATE BLACKBOX_STATE_SEND_HEADER
@@ -633,6 +646,7 @@ typedef struct blackboxMainState_s {
 #ifdef USE_MULTI_SENSOR
     multiSensorLogState_t multiSensor;
 #endif
+
 } blackboxMainState_t;
 
 typedef struct blackboxGpsState_s {
@@ -721,6 +735,11 @@ static uint16_t vbatReference;
 
 static blackboxGpsState_t gpsHistory;
 static blackboxSlowState_t slowHistory;
+#ifdef USE_MULTI_MAG
+static multiMagLogState_t multiMagSlowHistory;
+static uint32_t multiMagSlowPollUs;
+static bool multiMagSlowInitialized;
+#endif
 #ifdef USE_MULTI_SENSOR
 static multiSensorLogState_t multiSlowHistory;
 static uint32_t multiSlowAtUs;
@@ -913,6 +932,11 @@ static bool testBlackboxConditionUncached(FlightLogFieldCondition condition)
         return multiSensorBaroEnabled();
 #endif
 
+#ifdef USE_MULTI_MAG
+#define MAG_CONDITION(slot) case FLIGHT_LOG_FIELD_CONDITION_MULTI_MAG_ ## slot: return multiMagEnabled() && multiMagDetected(slot) && blackboxIncludeFlag(BLACKBOX_FEATURE_MAG);
+    MULTI_MAG_LOG_FIELDS(MAG_CONDITION)
+#undef MAG_CONDITION
+#endif
     case FLIGHT_LOG_FIELD_CONDITION_NEVER:
         return false;
 
@@ -964,6 +988,9 @@ static void blackboxSetState(BlackboxState newState)
 #ifdef USE_MULTI_SENSOR
         multiSlowInitialized = false;
 #endif
+#ifdef USE_MULTI_MAG
+        multiMagSlowInitialized = false;
+#endif
         break;
     case BLACKBOX_STATE_SHUTTING_DOWN:
         xmitState.u.startTime = millis();
@@ -991,6 +1018,17 @@ static unsigned blackboxMultiSensorGroups(void)
     if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_ACC)) groups |= MULTI_LOG_ACC;
     if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_LOG_BARO)) groups |= MULTI_LOG_BARO;
     return groups;
+}
+#endif
+
+#ifdef USE_MULTI_MAG
+static uint16_t blackboxMultiMagMask(void)
+{
+    uint16_t mask = 0;
+#define MAG_MASK(slot) if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_MULTI_MAG_ ## slot)) mask |= 1u << slot;
+    MULTI_MAG_LOG_FIELDS(MAG_MASK)
+#undef MAG_MASK
+    return mask;
 }
 #endif
 
@@ -1198,6 +1236,7 @@ static void writeIntraframe(void)
 #ifdef USE_MULTI_SENSOR
     multiSensorLogWriteMain(&blackboxCurrent->multiSensor, NULL, blackboxMultiSensorGroups());
 #endif
+
 
     //Rotate our history buffers:
 
@@ -1469,6 +1508,7 @@ static void writeInterframe(void)
     multiSensorLogWriteMain(&blackboxCurrent->multiSensor, &blackboxLast->multiSensor, blackboxMultiSensorGroups());
 #endif
 
+
     //Rotate our history buffers
     blackboxHistory[2] = blackboxHistory[1];
     blackboxHistory[1] = blackboxHistory[0];
@@ -1537,6 +1577,9 @@ static void writeSlowFrame(void)
 
 #ifdef USE_MULTI_SENSOR
     multiSensorLogWriteSlow(&multiSlowHistory, blackboxMultiSensorGroups());
+#endif
+#ifdef USE_MULTI_MAG
+    multiMagLogWrite(&multiMagSlowHistory, blackboxMultiMagMask());
 #endif
 
     blackboxSlowFrameIterationTimer = 0;
@@ -1660,6 +1703,18 @@ static bool writeSlowFrameIfNeeded(bool allowPeriodicWrite)
     const uint32_t nowUs = micros();
     const bool multiEnabled = blackboxMultiSensorGroups() != 0;
     shouldWrite |= multiEnabled && (!multiSlowInitialized || (allowPeriodicWrite && (uint32_t)(nowUs - multiSlowAtUs) >= 100000));
+#endif
+
+#ifdef USE_MULTI_MAG
+    const uint32_t magNowUs = micros();
+    if (blackboxMultiMagMask() && (!multiMagSlowInitialized || (uint32_t)(magNowUs - multiMagSlowPollUs) >= 10000)) {
+        multiMagLogState_t next;
+        multiMagLogCapture(&next, magNowUs);
+        shouldWrite |= !multiMagSlowInitialized || memcmp(&next, &multiMagSlowHistory, sizeof(next)) != 0;
+        multiMagSlowHistory = next;
+        multiMagSlowPollUs = magNowUs;
+        multiMagSlowInitialized = true;
+    }
 #endif
 
     if (shouldWrite) {
@@ -1859,6 +1914,8 @@ static void loadMainState(timeUs_t currentTimeUs)
         multiSensorLogCapture(&blackboxCurrent->multiSensor, currentTimeUs);
     }
 #endif
+
+
 
     blackboxCurrent->time = currentTimeUs;
 
@@ -2144,6 +2201,21 @@ static bool blackboxWriteSysinfo(void)
         BLACKBOX_PRINT_HEADER_LINE("gyro_scale", "0x%x",                    castFloatBytesToInt(1.0f));
         BLACKBOX_PRINT_HEADER_LINE("motorOutput", "%d,%d",                  getThrottleIdleValue(),getMaxThrottle());
         BLACKBOX_PRINT_HEADER_LINE("acc_1G", "%u",                          acc.dev.acc_1G);
+#ifdef USE_MULTI_MAG
+        BLACKBOX_PRINT_HEADER_LINE_CUSTOM(
+            if (multiMagEnabled()) blackboxPrintfHeaderLine("multi_mag_units", "%s", "XYZ=16ref,trust=quality&255,flags=quality>>8");
+        );
+#define MAG_INFO(slot) \
+        BLACKBOX_PRINT_HEADER_LINE_CUSTOM( \
+            multiMagSourceState_t source; \
+            if (multiMagEnabled() && multiMagCaptureSource(slot, micros(), &source)) \
+                blackboxPrintfHeaderLine("mag_source_" #slot, "%u,%u,%u,%u", \
+                    source.id, source.hardware, source.bus, source.address); \
+        );
+        MULTI_MAG_LOG_FIELDS(MAG_INFO)
+#undef MAG_INFO
+#endif
+
 #ifdef USE_MULTI_SENSOR
         BLACKBOX_PRINT_HEADER_LINE_CUSTOM(
             if (multiSensorImuEnabled() || multiSensorBaroEnabled())

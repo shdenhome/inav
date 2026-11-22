@@ -9,9 +9,13 @@
 #include "sensors/acceleration.h"
 #include "sensors/multi_sensor.h"
 #include "io/osd_sensor_trust.h"
+#include "io/osd_multi_mag.h"
 
 static sensorTrustMonitor_t monitor;
 static uint32_t lastUpdateMs;
+#ifdef USE_MULTI_MAG
+static bool magMessageSelected;
+#endif
 
 static bool sampleUsable(const sensorFusionMember_t *member, const sensorFusionSample_t *sample, uint32_t nowUs, uint32_t maxAgeUs)
 {
@@ -26,6 +30,9 @@ void osdSensorTrustUpdate(void)
     }
     lastUpdateMs = nowMs;
     const uint32_t nowUs = micros();
+#ifdef USE_MULTI_MAG
+    osdMultiMagUpdate(nowUs);
+#endif
     const multiSensorConfig_t *config = multiSensorConfig();
     sensorTrustInput_t inputs[SENSOR_TRUST_SOURCE_COUNT] = {0};
     if (multiSensorImuEnabled() && gyroIsCalibrationComplete() && accIsCalibrationComplete()) {
@@ -70,11 +77,27 @@ const char *osdSensorTrustMessage(void)
         "IMU 1 TRUST RESTORED", "IMU 2 TRUST RESTORED", "IMU 3 TRUST RESTORED", "MS5611 TRUST RESTORED", "SPL06 TRUST RESTORED",
     };
     const sensorTrustEvent_t *event = sensorTrustPeek(&monitor, millis());
-    return event ? (event->restored ? restored[event->source] : lost[event->source]) : NULL;
+    if (event) {
+#ifdef USE_MULTI_MAG
+        magMessageSelected = false;
+        osdMultiMagSetVisible(false);
+#endif
+        return event->restored ? restored[event->source] : lost[event->source];
+    }
+#ifdef USE_MULTI_MAG
+    const char *message = osdMultiMagMessage(millis());
+    magMessageSelected = message != NULL;
+    return message;
+#else
+    return NULL;
+#endif
 }
 
 void osdSensorTrustSetVisible(bool visible)
 {
     sensorTrustSetVisible(&monitor, visible);
+#ifdef USE_MULTI_MAG
+    osdMultiMagSetVisible(visible && magMessageSelected);
+#endif
 }
 #endif

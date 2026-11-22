@@ -169,3 +169,5 @@
 // command keeps its number, an unmerged one has no claim on it.
 #define MSP2_INAV_ESC_SRXL2_STATUS              0x2233
 #define MSP2_INAV_ESC_SRXL2_CALIBRATE           0x2234
+
+#define MSP2_INAV_MULTI_MAG_STATE 0x20A4 // paged individual MAG state, v1

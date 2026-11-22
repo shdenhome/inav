@@ -77,16 +77,23 @@ static bool mag3110Init(magDev_t * mag)
 
 static bool mag3110Read(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     uint8_t status;
     uint8_t buf[6];
 
     // set magData to zero for case of failed read
-    mag->magADCRaw[X] = 0;
-    mag->magADCRaw[Y] = 0;
-    mag->magADCRaw[Z] = 0;
+    if (!mag->usePreconfiguredBus) {
+        mag->magADCRaw[X] = 0;
+        mag->magADCRaw[Y] = 0;
+        mag->magADCRaw[Z] = 0;
+    }
 
     bool ack = busRead(mag->busDev, MAG3110_MAG_REG_STATUS, &status);
-    if (!ack || (status & BIT_STATUS_REG_DATA_READY) == 0) {
+    if (!ack) {
+        return false;
+    }
+    if ((status & BIT_STATUS_REG_DATA_READY) == 0) {
+        mag->readStatus = MAG_READ_NOT_READY;
         return false;
     }
 
@@ -99,6 +106,7 @@ static bool mag3110Read(magDev_t * mag)
     mag->magADCRaw[Y] = (int16_t)(buf[2] << 8 | buf[3]);
     mag->magADCRaw[Z] = -(int16_t)(buf[4] << 8 | buf[5]);  // Z is down, not up in this sensor
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
@@ -121,7 +129,7 @@ static bool deviceDetect(magDev_t * mag)
 
 bool mag3110detect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_MAG3110, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_ANY, DEVHW_MAG3110);
     if (mag->busDev == NULL) {
         return false;
     }

@@ -38,6 +38,25 @@
 
 #ifdef USE_MAG_CALIBRATION_ORIENTATION
 
+#define COMPASS_ORIENTATION_MAX_SAMPLES 128
+typedef struct compassOrientationSample_s {
+    int16_t rawMag[3];
+    int16_t q[4];
+} compassOrientationSample_t;
+typedef struct compassOrientationContext_s {
+    compassOrientationSample_t samples[COMPASS_ORIENTATION_MAX_SAMPLES];
+    uint16_t count;
+    // Extended 48-mount search also requires 3-axis coverage and <=10deg
+    // approximate RMS directional residual; legacy 16-mount checks are unchanged.
+    bool extendedCandidates;
+} compassOrientationContext_t;
+
+void compassOrientationContextReset(compassOrientationContext_t *context);
+void compassOrientationContextPush(compassOrientationContext_t *context, const int16_t rawMag[3], const fpQuaternion_t *attitude);
+bool compassOrientationContextDetect(const compassOrientationContext_t *context,
+    const float magZero[3], const int16_t magGain[3], float confidenceMin,
+    int16_t *outRollDD, int16_t *outPitchDD, int16_t *outYawDD, float *outConfidence);
+
 // Discards any buffered samples. Call at the start of a calibration spin.
 void compassOrientationBufferReset(void);
 

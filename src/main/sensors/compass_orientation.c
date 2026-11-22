@@ -28,17 +28,11 @@
 
 #if defined(USE_MAG) && defined(USE_MAG_CALIBRATION_ORIENTATION)
 
-#define COMPASS_ORIENTATION_MAX_SAMPLES 128
 #define COMPASS_ORIENTATION_MIN_SAMPLES 30
-#define COMPASS_ORIENTATION_CANDIDATE_COUNT 16
+#define COMPASS_ORIENTATION_LEGACY_CANDIDATES 16
+#define COMPASS_ORIENTATION_CANDIDATE_COUNT 48
 
-typedef struct {
-    int16_t rawMag[3];
-    int16_t q[4];   // attitude quaternion, Q15 fixed point (component * 32767)
-} compassOrientationSample_t;
-
-static compassOrientationSample_t sampleBuffer[COMPASS_ORIENTATION_MAX_SAMPLES];
-static uint16_t sampleCount;
+static compassOrientationContext_t legacyContext;
 
 typedef struct {
     int16_t rollDD, pitchDD, yawDD;
@@ -49,6 +43,11 @@ static const compassOrientationCandidate_t compassOrientationCandidates[COMPASS_
     {1800, 0,    0}, {1800, 0,  900}, {1800, 0, 1800}, {1800, 0, 2700},
     {   0, 0,  450}, {   0, 0, 1350}, {   0, 0, 2250}, {   0, 0, 3150},
     {1800, 0,  450}, {1800, 0, 1350}, {1800, 0, 2250}, {1800, 0, 3150},
+    // Side-mounted multi-MAGs; the legacy wrapper still searches only its original 16.
+    { 900,    0,    0}, { 900,    0,  450}, { 900,    0,  900}, { 900,    0, 1350}, { 900,    0, 1800}, { 900,    0, 2250}, { 900,    0, 2700}, { 900,    0, 3150},
+    {2700,    0,    0}, {2700,    0,  450}, {2700,    0,  900}, {2700,    0, 1350}, {2700,    0, 1800}, {2700,    0, 2250}, {2700,    0, 2700}, {2700,    0, 3150},
+    {   0,  900,    0}, {   0,  900,  450}, {   0,  900,  900}, {   0,  900, 1350}, {   0,  900, 1800}, {   0,  900, 2250}, {   0,  900, 2700}, {   0,  900, 3150},
+    {   0, 2700,    0}, {   0, 2700,  450}, {   0, 2700,  900}, {   0, 2700, 1350}, {   0, 2700, 1800}, {   0, 2700, 2250}, {   0, 2700, 2700}, {   0, 2700, 3150},
 };
 
 // Running mean/variance of a 3-vector (Welford's algorithm, multivariate: m2
@@ -91,18 +90,18 @@ static float q15Decode(int16_t x)
     return (float)x / 32767.0f;
 }
 
-void compassOrientationBufferReset(void)
+void compassOrientationContextReset(compassOrientationContext_t *context)
 {
-    sampleCount = 0;
+    context->count = 0;
 }
 
-void compassOrientationBufferPush(const int16_t rawMag[3], const fpQuaternion_t *attitude)
+void compassOrientationContextPush(compassOrientationContext_t *context, const int16_t rawMag[3], const fpQuaternion_t *attitude)
 {
-    if (sampleCount >= COMPASS_ORIENTATION_MAX_SAMPLES) {
+    if (context->count >= COMPASS_ORIENTATION_MAX_SAMPLES) {
         return;
     }
 
-    compassOrientationSample_t *s = &sampleBuffer[sampleCount++];
+    compassOrientationSample_t *s = &context->samples[context->count++];
     s->rawMag[0] = rawMag[0];
     s->rawMag[1] = rawMag[1];
     s->rawMag[2] = rawMag[2];
@@ -112,24 +111,41 @@ void compassOrientationBufferPush(const int16_t rawMag[3], const fpQuaternion_t 
     s->q[3] = q15Encode(attitude->q3);
 }
 
-bool compassOrientationDetect(const float magZero[3], const int16_t magGain[3],
+bool compassOrientationContextDetect(const compassOrientationContext_t *context, const float magZero[3], const int16_t magGain[3],
                                float confidenceMin,
                                int16_t *outRollDD, int16_t *outPitchDD, int16_t *outYawDD,
                                float *outConfidence)
 {
-    if (sampleCount < COMPASS_ORIENTATION_MIN_SAMPLES) {
+    if (context->count < COMPASS_ORIENTATION_MIN_SAMPLES) {
         return false;
     }
     if (magGain[0] == 0 || magGain[1] == 0 || magGain[2] == 0) {
         return false;
     }
 
+    if (context->extendedCandidates) {
+        // Multi-MAG calibration must excite every sensor axis. A flat yaw spin
+        // cannot identify a general mounting rotation even with many samples.
+        for (unsigned axis = 0; axis < 3; axis++) {
+            float minimum = INFINITY, maximum = -INFINITY;
+            if (magGain[axis] <= 0 || !isfinite(magZero[axis])) return false;
+            for (unsigned i = 0; i < context->count; i++) {
+                const float value = (context->samples[i].rawMag[axis] - magZero[axis]) * 1024.0f / magGain[axis];
+                minimum = fminf(minimum, value);
+                maximum = fmaxf(maximum, value);
+            }
+            if (maximum - minimum < 512.0f) return false;
+        }
+    }
+
     int best = -1;
     int second = -1;
     float bestVar = 0.0f;
     float secondVar = 0.0f;
+    float bestResidual = INFINITY;
 
-    for (int c = 0; c < COMPASS_ORIENTATION_CANDIDATE_COUNT; c++) {
+    const int candidates = context->extendedCandidates ? COMPASS_ORIENTATION_CANDIDATE_COUNT : COMPASS_ORIENTATION_LEGACY_CANDIDATES;
+    for (int c = 0; c < candidates; c++) {
         fp_angles_t angles = {
             .angles.roll  = DECIDEGREES_TO_RADIANS(compassOrientationCandidates[c].rollDD),
             .angles.pitch = DECIDEGREES_TO_RADIANS(compassOrientationCandidates[c].pitchDD),
@@ -140,9 +156,11 @@ bool compassOrientationDetect(const float magZero[3], const int16_t magGain[3],
 
         compassOrientationStats_t stats;
         statsReset(&stats);
+        compassOrientationStats_t directionStats;
+        statsReset(&directionStats);
 
-        for (uint16_t i = 0; i < sampleCount; i++) {
-            const compassOrientationSample_t *s = &sampleBuffer[i];
+        for (uint16_t i = 0; i < context->count; i++) {
+            const compassOrientationSample_t *s = &context->samples[i];
 
             const fpVector3_t calibrated = {
                 .x = (s->rawMag[0] - magZero[0]) * 1024.0f / magGain[0],
@@ -158,6 +176,13 @@ bool compassOrientationDetect(const float magZero[3], const int16_t magGain[3],
             rotationMatrixRotateVector(&boardFrame, &calibrated, &rmat);
             quaternionRotateVectorInv(&earthField, &boardFrame, &q);
             statsPush(&stats, &earthField);
+            if (context->extendedCandidates) {
+                const float norm = sqrtf(sq(earthField.x) + sq(earthField.y) + sq(earthField.z));
+                if (!isfinite(norm) || norm < 1e-6f) return false;
+                fpVector3_t unit;
+                for (unsigned axis = 0; axis < 3; axis++) unit.v[axis] = earthField.v[axis] / norm;
+                statsPush(&directionStats, &unit);
+            }
         }
 
         const float variance = statsVariance(&stats);
@@ -166,9 +191,22 @@ bool compassOrientationDetect(const float magZero[3], const int16_t magGain[3],
             secondVar = bestVar;
             best = c;
             bestVar = variance;
+            bestResidual = statsVariance(&directionStats);
         } else if (second == -1 || variance < secondVar) {
             second = c;
             secondVar = variance;
+        }
+    }
+
+    if (context->extendedCandidates) {
+        // A ratio alone can prefer a wrong discrete mount for an oblique sensor.
+        // RMS chord residual of unit earth vectors must stay below 2*sin(5deg),
+        // approximately 10deg RMS angular error. Reject a degenerate tied fit.
+        const float maximumResidual = 0.030384494f;
+        if (!isfinite(bestResidual) || bestResidual > maximumResidual || second < 0 ||
+            !isfinite(bestVar) || !isfinite(secondVar) || secondVar < 1e-6f) {
+            *outConfidence = 0;
+            return false;
         }
     }
 
@@ -185,6 +223,21 @@ bool compassOrientationDetect(const float magZero[3], const int16_t magGain[3],
     *outPitchDD = compassOrientationCandidates[best].pitchDD;
     *outYawDD = compassOrientationCandidates[best].yawDD;
     return true;
+}
+
+void compassOrientationBufferReset(void)
+{
+    compassOrientationContextReset(&legacyContext);
+}
+void compassOrientationBufferPush(const int16_t rawMag[3], const fpQuaternion_t *attitude)
+{
+    compassOrientationContextPush(&legacyContext, rawMag, attitude);
+}
+bool compassOrientationDetect(const float magZero[3], const int16_t magGain[3],
+    float confidenceMin, int16_t *outRollDD, int16_t *outPitchDD, int16_t *outYawDD, float *outConfidence)
+{
+    return compassOrientationContextDetect(&legacyContext, magZero, magGain,
+        confidenceMin, outRollDD, outPitchDD, outYawDD, outConfidence);
 }
 
 #endif

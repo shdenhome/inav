@@ -61,6 +61,7 @@
 
 #include "sensors/boardalignment.h"
 #include "sensors/compass.h"
+#include "sensors/multi_mag.h"
 #include "sensors/compass_orientation.h"
 #include "sensors/gyro.h"
 #include "sensors/sensors.h"
@@ -356,6 +357,9 @@ static void compassRefreshAlignment(void)
 
 bool compassInit(void)
 {
+#ifdef USE_MULTI_MAG
+    if (multiMagConfig()->enabled) return multiMagInit();
+#endif
 #ifdef USE_DUAL_MAG
     mag.dev.magSensorToUse = compassConfig()->mag_to_use;
 #else
@@ -381,16 +385,25 @@ bool compassInit(void)
 
 bool compassIsHealthy(void)
 {
+#ifdef USE_MULTI_MAG
+    if (multiMagEnabled()) return multiMagIsHealthy();
+#endif
     return (mag.magADC[X] != 0) || (mag.magADC[Y] != 0) || (mag.magADC[Z] != 0);
 }
 
 bool compassIsReady(void)
 {
+#ifdef USE_MULTI_MAG
+    if (multiMagEnabled()) return multiMagIsReady();
+#endif
     return magUpdatedAtLeastOnce;
 }
 
 bool compassIsCalibrationComplete(void)
 {
+#ifdef USE_MULTI_MAG
+    if (multiMagEnabled()) return multiMagIsCalibrated();
+#endif
     if (STATE(COMPASS_CALIBRATED)) {
         return true;
     }
@@ -401,6 +414,9 @@ bool compassIsCalibrationComplete(void)
 
 bool compassIsCalibrating(void)
 {
+#ifdef USE_MULTI_MAG
+    if (multiMagEnabled()) return multiMagIsCalibrating();
+#endif
     return calStartedAt != 0;
 }
 
@@ -432,6 +448,9 @@ static void compassApplyDetectedOrientation(int16_t rollDD, int16_t pitchDD, int
 
 void compassUpdate(timeUs_t currentTimeUs)
 {
+#ifdef USE_MULTI_MAG
+    if (multiMagEnabled()) { multiMagUpdate(currentTimeUs); return; }
+#endif
 #ifdef USE_SIMULATOR
 	if (ARMING_FLAG(SIMULATOR_MODE_HITL)) {
 		magUpdatedAtLeastOnce = true;

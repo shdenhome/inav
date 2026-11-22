@@ -39,6 +39,23 @@ set_property(SOURCE battery_ina226_unittest.cc PROPERTY definitions USE_INA226 U
 
 set_property(SOURCE bitarray_unittest.cc PROPERTY depends "common/bitarray.c")
 
+set_property(SOURCE compass_multi_bus_unittest.cc PROPERTY depends
+    "common/maths.c"
+    "drivers/compass/compass_ak8963.c"
+    "drivers/compass/compass_ak8975.c"
+    "drivers/compass/compass_hmc5883l.c"
+    "drivers/compass/compass_ist8308.c"
+    "drivers/compass/compass_ist8310.c"
+    "drivers/compass/compass_lis2mdl.c"
+    "drivers/compass/compass_lis3mdl.c"
+    "drivers/compass/compass_mag3110.c"
+    "drivers/compass/compass_mlx90393.c"
+    "drivers/compass/compass_qmc5883l.c"
+    "drivers/compass/compass_qmc5883p.c"
+    "drivers/compass/compass_vcm5883.c"
+)
+set_property(SOURCE compass_multi_bus_unittest.cc PROPERTY definitions USE_I2C USE_MAG_AK8963 USE_MAG_AK8975 USE_MAG_HMC5883 USE_MAG_IST8308 USE_MAG_IST8310 USE_MAG_LIS2MDL USE_MAG_LIS3MDL USE_MAG_MAG3110 USE_MAG_MLX90393 USE_MAG_QMC5883 USE_MAG_QMC5883P USE_MAG_VCM5883)
+
 set_property(SOURCE compass_orientation_unittest.cc PROPERTY depends
     "common/maths.c" "sensors/compass_orientation.c")
 set_property(SOURCE compass_orientation_unittest.cc PROPERTY definitions USE_MAG USE_MAG_CALIBRATION_ORIENTATION)
@@ -47,6 +64,8 @@ set_property(SOURCE flight_imu_unittest.cc PROPERTY depends     "build/debug.c"
     "common/maths.c" "common/calibration.c" "common/filter.c"
     "drivers/accgyro/accgyro_fake.c" "flight/imu.c" "sensors/boardalignment.c"
     "sensors/gyro.c")
+
+set_property(SOURCE mag_fusion_unittest.cc PROPERTY depends "common/mag_fusion.c")
 
 set_property(SOURCE multi_acc_unittest.cc PROPERTY depends
     "sensors/multi_acc.c" "sensors/acceleration.c" "sensors/multi_sensor.c" "common/sensor_fusion.c" "common/calibration.c"
@@ -61,6 +80,12 @@ set_property(SOURCE multi_gyro_unittest.cc PROPERTY depends
     "sensors/gyro.c" "sensors/multi_sensor.c" "common/sensor_fusion.c" "common/calibration.c"
     "common/maths.c" "common/filter.c" "common/lulu.c" "sensors/boardalignment.c" "build/debug.c")
 set_property(SOURCE multi_gyro_unittest.cc PROPERTY definitions USE_MULTI_SENSOR USE_DUAL_GYRO MULTI_IMU_UNIT_TEST)
+
+set_property(SOURCE multi_mag_log_unittest.cc PROPERTY depends "blackbox/multi_mag_log.c" "blackbox/blackbox_encoding.c" "common/encoding.c")
+set_property(SOURCE multi_mag_log_unittest.cc PROPERTY definitions USE_MULTI_MAG USE_BLACKBOX)
+
+set_property(SOURCE multi_mag_core_unittest.cc PROPERTY depends "sensors/multi_mag.c" "common/mag_fusion.c" "common/maths.c" "common/streambuf.c")
+set_property(SOURCE multi_mag_core_unittest.cc PROPERTY definitions USE_MULTI_MAG USE_MAG_CALIBRATION_ORIENTATION MULTI_MAG_UNIT_TEST USE_I2C USE_MAG_LIS3MDL)
 
 set_property(SOURCE multi_sensor_log_unittest.cc PROPERTY depends
     "blackbox/multi_sensor_log.c" "blackbox/blackbox_encoding.c" "common/encoding.c")
@@ -267,6 +292,9 @@ set_property(SOURCE mavlink_unittest.cc PROPERTY definitions USE_TELEMETRY USE_T
 set_property(SOURCE mavlink_unittest.cc PROPERTY extra_includes
     "../../lib/main/MAVLink")
 
+set_property(SOURCE osd_multi_mag_unittest.cc PROPERTY depends "io/osd_multi_mag.c")
+set_property(SOURCE osd_multi_mag_unittest.cc PROPERTY definitions USE_MULTI_MAG)
+
 set_property(SOURCE pitotmeter_virtual_validity_unittest.cc PROPERTY depends "sensors/pitotmeter.c" "common/maths.c" "common/filter.c" "common/calibration.c" "common/lulu.c")
 set_property(SOURCE pitotmeter_virtual_validity_unittest.cc PROPERTY definitions USE_PITOT USE_PITOT_VIRTUAL USE_WIND_ESTIMATOR USE_GPS)
 
@@ -275,6 +303,7 @@ set_property(SOURCE pitotmeter_failed_hw_validity_unittest.cc PROPERTY definitio
 
 set_property(SOURCE servos_swap_roll_yaw_unittest.cc PROPERTY depends
     "flight/servos.c" "common/maths.c" "common/filter.c" "common/lulu.c" "programming/logic_condition.c")
+
 
 function(unit_test src)
     get_filename_component(basename ${src} NAME)

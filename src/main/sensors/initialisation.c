@@ -30,6 +30,7 @@
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
 #include "sensors/compass.h"
+#include "sensors/multi_mag.h"
 #include "sensors/gyro.h"
 #include "sensors/initialisation.h"
 #include "sensors/irlock.h"
@@ -91,7 +92,7 @@ bool sensorsAutodetect(void)
 #endif
 
 #ifdef USE_MAG
-    if (compassConfig()->mag_hardware == MAG_AUTODETECT) {
+    if (!multiMagEnabled() && compassConfig()->mag_hardware == MAG_AUTODETECT) {
         compassConfigMutable()->mag_hardware = detectedSensors[SENSOR_INDEX_MAG];
         eepromUpdatePending = true;
     }

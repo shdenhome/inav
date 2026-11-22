@@ -113,8 +113,29 @@
 
 static bool hmc5883lRead(magDev_t * mag)
 {
+    mag->readStatus = MAG_READ_ERROR;
     uint8_t buf[6];
     bool ack;
+
+    if (mag->usePreconfiguredBus) {
+        // Honeywell HMC5883L, status 0x09: RDY=bit0, LOCK=bit1.
+        uint8_t status;
+        if (!busRead(mag->busDev, 0x09, &status)) {
+            return false;
+        }
+        if (status & 0x02) {
+            // Drain all six bytes to release a partially read/locked sample.
+            if (!busReadBuf(mag->busDev, MAG_DATA_REGISTER, buf, sizeof(buf))) {
+                return false;
+            }
+            mag->readStatus = MAG_READ_NOT_READY;
+            return false;
+        }
+        if (!(status & 0x01)) {
+            mag->readStatus = MAG_READ_NOT_READY;
+            return false;
+        }
+    }
 
     if (mag->busDev->busType == BUSTYPE_SPI) {
         ack = busReadBuf(mag->busDev, MAG_DATA_REGISTER_SPI, buf, 6);
@@ -124,9 +145,18 @@ static bool hmc5883lRead(magDev_t * mag)
     }
 
     if (!ack) {
-        mag->magADCRaw[X] = 0;
-        mag->magADCRaw[Y] = 0;
-        mag->magADCRaw[Z] = 0;
+        if (!mag->usePreconfiguredBus) {
+            mag->magADCRaw[X] = 0;
+            mag->magADCRaw[Y] = 0;
+            mag->magADCRaw[Z] = 0;
+        }
+        return false;
+    }
+
+    if (mag->usePreconfiguredBus &&
+        ((int16_t)(buf[0] << 8 | buf[1]) == -4096 ||
+         (int16_t)(buf[2] << 8 | buf[3]) == -4096 ||
+         (int16_t)(buf[4] << 8 | buf[5]) == -4096)) {
         return false;
     }
 
@@ -134,22 +164,24 @@ static bool hmc5883lRead(magDev_t * mag)
     mag->magADCRaw[Z] = (int16_t)(buf[2] << 8 | buf[3]);
     mag->magADCRaw[Y] = (int16_t)(buf[4] << 8 | buf[5]);
 
+    mag->readStatus = MAG_READ_READY;
     return true;
 }
 
 #define INITIALISATION_MAX_READ_FAILURES 5
 static bool hmc5883lInit(magDev_t * mag)
 {
-    busWrite(mag->busDev, HMC58X3_R_CONFA, 0x78);   // Configuration Register A  -- 0 11 100 00  num samples: 8 ; output rate: 75Hz ; normal measurement mode
+    bool initOk = true;
+    initOk = busWrite(mag->busDev, HMC58X3_R_CONFA, 0x78) && initOk;   // Configuration Register A  -- 0 11 100 00  num samples: 8 ; output rate: 75Hz ; normal measurement mode
     delay(5);
 
-    busWrite(mag->busDev, HMC58X3_R_CONFB, 0x20);   // Configuration Register B  -- 001 00000    configuration gain 1.3Ga
+    initOk = busWrite(mag->busDev, HMC58X3_R_CONFB, 0x20) && initOk;   // Configuration Register B  -- 001 00000    configuration gain 1.3Ga
     delay(5);
 
-    busWrite(mag->busDev, HMC58X3_R_MODE, 0x00);    // Mode register             -- 000000 00    continuous Conversion Mode
+    initOk = busWrite(mag->busDev, HMC58X3_R_MODE, 0x00) && initOk;    // Mode register             -- 000000 00    continuous Conversion Mode
     delay(100);
 
-    return true;
+    return !mag->usePreconfiguredBus || initOk;
 }
 
 #define DETECTION_MAX_RETRY_COUNT   200
@@ -171,7 +203,7 @@ static bool deviceDetect(magDev_t * mag)
 
 bool hmc5883lDetect(magDev_t * mag)
 {
-    mag->busDev = busDeviceInit(BUSTYPE_ANY, DEVHW_HMC5883, mag->magSensorToUse, OWNER_COMPASS);
+    mag->busDev = magBusDeviceInit(mag, BUSTYPE_ANY, DEVHW_HMC5883);
     if (mag->busDev == NULL) {
         return false;
     }
