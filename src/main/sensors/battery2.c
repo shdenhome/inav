@@ -32,16 +32,6 @@
 #define BATTERY2_VOLTAGE_LPF_FREQ      1
 #define BATTERY2_CAN_TIMEOUT_MS        1500
 #define BATTERY2_ADC_VREF_MV            3300u
-#ifndef BATTERY2_VOLTAGE_ADC_SCALE
-#define BATTERY2_VOLTAGE_ADC_SCALE 1000
-#endif
-#ifndef BATTERY2_CURRENT_ADC_SCALE
-#ifdef CURRENT_METER_SCALE
-#define BATTERY2_CURRENT_ADC_SCALE CURRENT_METER_SCALE
-#else
-#define BATTERY2_CURRENT_ADC_SCALE 250
-#endif
-#endif
 
 PG_REGISTER_WITH_RESET_TEMPLATE(battery2Config_t, battery2Config, PG_BATTERY2_CONFIG, 1);
 
@@ -104,28 +94,8 @@ void battery2Init(void)
     battery2MAhAccumulator = 0;
     battery2PollElapsed = 0;
 
-#if defined(USE_BATTERY2_ADC)
-    if (battery2Config()->voltageSensor == BATTERY2_SENSOR_ADC && battery2Config()->voltageScale == 1000) {
-        battery2ConfigMutable()->voltageScale = BATTERY2_VOLTAGE_ADC_SCALE;
-    } else if (battery2Config()->voltageSensor == BATTERY2_SENSOR_I2C
-        && battery2Config()->voltageScale == BATTERY2_VOLTAGE_ADC_SCALE) {
-        battery2ConfigMutable()->voltageScale = 1000;
-    }
-#endif
-
-    // Convert legacy I2C scale values to the Matek 200 uOhm shunt scale.
-    if (battery2Config()->currentSensor == BATTERY2_SENSOR_I2C && battery2Config()->currentScale >= 100) {
-        battery2ConfigMutable()->currentScale = 2;
-        battery2ConfigMutable()->currentOffset = 0;
-    }
-#if defined(USE_BATTERY2_ADC)
-    // The old I2C default (2) is not a useful ADC sensor scale. Seed it from
-    // the board's primary ADC current-meter scale when ADC is selected.
-    if (battery2Config()->currentSensor == BATTERY2_SENSOR_ADC && battery2Config()->currentScale == 2) {
-        battery2ConfigMutable()->currentScale = BATTERY2_CURRENT_ADC_SCALE;
-        battery2ConfigMutable()->currentOffset = CURRENT_METER_OFFSET;
-    }
-#endif
+    // Persisted calibration is authoritative. Defaults for an explicit sensor
+    // type change are selected by Configurator, never inferred from scale values.
 
 #if defined(USE_BATTERY2_INA2XX)
     if ((battery2Config()->voltageEnabled && battery2Config()->voltageSensor == BATTERY2_SENSOR_I2C)

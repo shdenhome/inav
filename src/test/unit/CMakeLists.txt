@@ -33,6 +33,15 @@ set_property(SOURCE barometer_compass_bus_unittest.cc PROPERTY definitions USE_B
 set_property(SOURCE barometer_ms56xx_bus_unittest.cc PROPERTY depends "drivers/barometer/barometer_ms56xx.c")
 set_property(SOURCE barometer_ms56xx_bus_unittest.cc PROPERTY definitions USE_BARO_MS5611)
 
+set_property(SOURCE battery2_config_msp_unittest.cc PROPERTY depends "common/streambuf.c")
+set_property(SOURCE battery2_config_msp_unittest.cc PROPERTY definitions USE_BATTERY2_ADC)
+
+set_property(SOURCE battery2_init_unittest.cc PROPERTY extra_sources "sensors/battery2.c")
+set_property(SOURCE battery2_init_unittest.cc PROPERTY depends
+    "common/filter.c" "common/maths.c" "common/lulu.c")
+set_property(SOURCE battery2_init_unittest.cc PROPERTY definitions
+    USE_BATTERY2_ADC BATTERY2_VOLTAGE_ADC_SCALE=2100 BATTERY2_CURRENT_ADC_SCALE=250 CURRENT_METER_OFFSET=10)
+
 set_property(SOURCE battery_ina226_unittest.cc PROPERTY depends
     "sensors/battery.c" "drivers/ina226.c" "common/filter.c" "common/lulu.c" "common/maths.c")
 set_property(SOURCE battery_ina226_unittest.cc PROPERTY definitions USE_INA226 USE_I2C USE_I2C_DEVICE_1 BATTERY_I2C_BUS=BUS_I2C1 INA226_I2C_ADDRESS=0x40 USE_HEADTRACKER USE_STATS USE_ADC)

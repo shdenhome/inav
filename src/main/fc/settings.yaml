@@ -1243,6 +1243,25 @@ groups:
         min: -1800
         max: 3600
 
+  - name: PG_BATTERY2_CONFIG
+    type: battery2Config_t
+    headers: ["sensors/battery_config_structs.h"]
+    members:
+      - name: battery2_voltage_scale
+        description: "Second battery voltage scale for ADC and I2C sensors. CAN measurements do not use this scale."
+        field: voltageScale
+        type: uint16_t
+        default_value: 1000
+        min: 1
+        max: 65535
+      - name: battery2_current_scale
+        description: "Second battery current scale for ADC and I2C sensors; current is inversely proportional to this scale. CAN measurements do not use it."
+        field: currentScale
+        type: uint16_t
+        default_value: 2
+        min: 1
+        max: 65535
+
   - name: PG_BATTERY_METERS_CONFIG
     type: batteryMetersConfig_t
     headers: ["sensors/battery_config_structs.h"]

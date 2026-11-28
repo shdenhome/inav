@@ -130,6 +130,8 @@
 #include "sensors/sensors.h"
 #include "sensors/diagnostics.h"
 #include "sensors/battery.h"
+#include "sensors/battery2_config_msp.h"
+#include "fc/msp_setting_value.h"
 #include "sensors/rangefinder.h"
 #include "sensors/acceleration.h"
 #include "sensors/barometer.h"
@@ -2610,57 +2612,14 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
             return MSP_RESULT_ERROR;
         break;
 
-    case MSP2_INAV_SET_BATTERY2_CONFIG:
-        if (dataSize != 15 && dataSize != 20 && dataSize != 21) {
+    case MSP2_INAV_SET_BATTERY2_CONFIG: {
+        battery2Config_t config;
+        if (!battery2ConfigDecode(src, battery2Config(), &config)) {
             return MSP_RESULT_ERROR;
         }
-
-        {
-            battery2Config_t config = {
-                .voltageScale = sbufReadU16(src),
-                .voltageOffset = (int16_t)sbufReadU16(src),
-                .currentScale = sbufReadU16(src),
-                .currentOffset = (int16_t)sbufReadU16(src),
-                .cells = sbufReadU8(src),
-                .cellDetect = sbufReadU16(src),
-                .cellWarning = sbufReadU16(src),
-                .cellCritical = sbufReadU16(src),
-                .voltageEnabled = battery2Config()->voltageEnabled,
-                .voltageSensor = battery2Config()->voltageSensor,
-                .currentEnabled = battery2Config()->currentEnabled,
-                .currentSensor = battery2Config()->currentSensor,
-                .canBatteryId = battery2Config()->canBatteryId,
-                .currentI2cAddress = battery2Config()->currentI2cAddress,
-            };
-
-            if (dataSize == 20) {
-                config.voltageEnabled = sbufReadU8(src);
-                config.voltageSensor = sbufReadU8(src);
-                config.currentEnabled = sbufReadU8(src);
-                config.currentSensor = sbufReadU8(src);
-                config.canBatteryId = sbufReadU8(src);
-            }
-            if (dataSize == 21) {
-                config.currentI2cAddress = sbufReadU8(src);
-            }
-
-            if (config.voltageScale == 0 || config.currentScale == 0 || config.cells > 12
-                || config.voltageEnabled > 1 || config.currentEnabled > 1
-                || config.voltageSensor > BATTERY2_SENSOR_ADC || config.currentSensor > BATTERY2_SENSOR_ADC
-                || config.currentI2cAddress < 0x40 || config.currentI2cAddress > 0x4F
-#if !defined(USE_BATTERY2_ADC)
-                || config.voltageSensor == BATTERY2_SENSOR_ADC || config.currentSensor == BATTERY2_SENSOR_ADC
-#endif
-                || config.cellDetect < 250 || config.cellDetect > 500
-                || config.cellCritical < 250 || config.cellCritical > 450
-                || config.cellWarning < 250 || config.cellWarning > 450
-                || config.cellCritical >= config.cellWarning) {
-                return MSP_RESULT_ERROR;
-            }
-
-            *battery2ConfigMutable() = config;
-        }
+        *battery2ConfigMutable() = config;
         break;
+    }
 
     case MSP_SET_MOTOR:
         if (dataSize >= 8 * sizeof(uint16_t)) {
@@ -4341,15 +4300,8 @@ static bool mspSetSettingCommand(sbuf_t *dst, sbuf_t *src)
             }
             break;
         case VAR_UINT16:
-            {
-                uint16_t val;
-                if (!sbufReadU16Safe(&val, src)) {
-                    return false;
-                }
-                if (val > max) {
-                    return false;
-                }
-                *((uint16_t*)ptr) = val;
+            if (!mspReadSettingU16(src, min, max, (uint16_t *)ptr)) {
+                return false;
             }
             break;
         case VAR_INT16:
