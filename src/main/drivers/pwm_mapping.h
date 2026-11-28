@@ -72,6 +72,7 @@ typedef enum {
     PWM_INIT_ERROR_NOT_ENOUGH_MOTOR_OUTPUTS,
     PWM_INIT_ERROR_NOT_ENOUGH_SERVO_OUTPUTS,
     PWM_INIT_ERROR_TIMER_INIT_FAILED,
+    PWM_INIT_ERROR_MOTOR_PROTOCOL_CONFLICT,
 } pwmInitError_e;
 
 typedef struct rangefinderIOConfig_s {
@@ -105,3 +106,6 @@ const char * getPwmInitErrorMessage(void);
 const timMotorServoHardware_t *pwmGetOutputAssignment(void);
 void pwmCalculateAssignment(timMotorServoHardware_t *out, const uint8_t *proposedModes);
 #endif // SITL_BUILD
+
+uint16_t pwmTimerMotorProtocolMask(uint8_t timerIndex);
+bool pwmTimerMotorProtocolsValidate(const uint8_t *protocols);

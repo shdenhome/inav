@@ -371,7 +371,7 @@ void initActiveBoxIds(void)
 #endif
 
 #ifdef USE_DSHOT
-    if(STATE(MULTIROTOR) && isMotorProtocolDshot()) {
+    if(STATE(MULTIROTOR) && areAllMotorsDshot()) {
         ADD_ACTIVE_BOX(BOXTURTLE);
     }
 #endif

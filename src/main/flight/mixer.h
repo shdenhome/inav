@@ -80,6 +80,18 @@ typedef struct timerOverride_s {
 
 PG_DECLARE_ARRAY(timerOverride_t, HARDWARE_TIMER_DEFINITION_COUNT, timerOverrides);
 
+// A separate master PG preserves timer output assignments from older firmware.
+#define TIMER_MOTOR_PROTOCOL_DEFAULT 255
+
+typedef struct timerMotorProtocolConfig_s {
+    uint8_t protocol;
+} timerMotorProtocolConfig_t;
+
+PG_DECLARE_ARRAY(timerMotorProtocolConfig_t, HARDWARE_TIMER_DEFINITION_COUNT, timerMotorProtocols);
+uint8_t getEffectiveMotorProtocol(uint8_t timerIndex);
+bool timerMotorProtocolOverrideValid(uint8_t protocol);
+
+
 typedef struct reversibleMotorsConfig_s {
     uint16_t deadband_low;                // min 3d value
     uint16_t deadband_high;               // max 3d value

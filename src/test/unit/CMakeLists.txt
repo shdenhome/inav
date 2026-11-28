@@ -33,6 +33,8 @@ set_property(SOURCE barometer_compass_bus_unittest.cc PROPERTY definitions USE_B
 set_property(SOURCE barometer_ms56xx_bus_unittest.cc PROPERTY depends "drivers/barometer/barometer_ms56xx.c")
 set_property(SOURCE barometer_ms56xx_bus_unittest.cc PROPERTY definitions USE_BARO_MS5611)
 
+set_property(SOURCE timer_motor_protocol_unittest.cc PROPERTY depends "common/streambuf.c")
+
 set_property(SOURCE battery2_config_msp_unittest.cc PROPERTY depends "common/streambuf.c")
 set_property(SOURCE battery2_config_msp_unittest.cc PROPERTY definitions USE_BATTERY2_ADC)
 

@@ -325,6 +325,16 @@ bool isMotorProtocolDshot(void)
     }
 }
 
+bool isMotorDshot(uint8_t index)
+{
+    return index < getMotorCount() && isMotorProtocolDshot();
+}
+
+bool areAllMotorsDshot(void)
+{
+    return getMotorCount() > 0 && isMotorProtocolDshot();
+}
+
 bool isMotorProtocolDigital(void)
 {
     return isMotorProtocolDshot();
@@ -409,6 +419,11 @@ typedef enum {
 
 bool pwmMotorAndServoInit(void)
 {
+    // Per-timer routing is implemented by the STM32/AT32 timer driver only.
+    for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+        if (timerMotorProtocols(i)->protocol != TIMER_MOTOR_PROTOCOL_DEFAULT) return false;
+    }
+
     if (dshotInitialized || motorPwmInitialized) {
         return true;  /* already initialized */
     }

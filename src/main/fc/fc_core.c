@@ -607,7 +607,7 @@ void tryArm(void)
 #else
     const bool turtleIsActive = IS_RC_MODE_ACTIVE(BOXTURTLE);
 #endif
-    if (STATE(MULTIROTOR) && turtleIsActive && !FLIGHT_MODE(TURTLE_MODE) && emergencyArmingCanOverrideArmingDisabled() && isMotorProtocolDshot()) {
+    if (STATE(MULTIROTOR) && turtleIsActive && !FLIGHT_MODE(TURTLE_MODE) && emergencyArmingCanOverrideArmingDisabled() && areAllMotorsDshot()) {
         sendDShotCommand(DSHOT_CMD_SPIN_DIRECTION_REVERSED);
         ENABLE_ARMING_FLAG(ARMED);
         ENABLE_FLIGHT_MODE(TURTLE_MODE);

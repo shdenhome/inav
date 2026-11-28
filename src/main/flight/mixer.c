@@ -113,6 +113,36 @@ void pgResetFn_timerOverrides(timerOverride_t *instance)
     }
 }
 
+PG_REGISTER_ARRAY_WITH_RESET_FN(timerMotorProtocolConfig_t, HARDWARE_TIMER_DEFINITION_COUNT,
+    timerMotorProtocols, PG_TIMER_MOTOR_PROTOCOL_CONFIG, 0);
+
+void pgResetFn_timerMotorProtocols(timerMotorProtocolConfig_t *instance)
+{
+    for (int i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+        instance[i].protocol = TIMER_MOTOR_PROTOCOL_DEFAULT;
+    }
+}
+
+bool timerMotorProtocolOverrideValid(uint8_t protocol)
+{
+#if defined(SITL_BUILD) || defined(RP2350)
+    return protocol == TIMER_MOTOR_PROTOCOL_DEFAULT;
+#else
+    return protocol == TIMER_MOTOR_PROTOCOL_DEFAULT || protocol == PWM_TYPE_STANDARD
+#ifdef USE_DSHOT
+        || (protocol >= PWM_TYPE_DSHOT150 && protocol <= PWM_TYPE_DSHOT600)
+#endif
+        ;
+#endif
+}
+
+uint8_t getEffectiveMotorProtocol(uint8_t timerIndex)
+{
+    const uint8_t protocol = timerIndex < HARDWARE_TIMER_DEFINITION_COUNT
+        ? timerMotorProtocols(timerIndex)->protocol : TIMER_MOTOR_PROTOCOL_DEFAULT;
+    return protocol == TIMER_MOTOR_PROTOCOL_DEFAULT ? motorConfig()->motorPwmProtocol : protocol;
+}
+
 int getThrottleIdleValue(void)
 {
     if (!throttleIdleValue) {
@@ -537,7 +567,7 @@ void FAST_CODE writeMotors(void)
     for (int i = 0; i < motorCount; i++) {
         uint16_t motorValue;
 #ifdef USE_DSHOT
-        if (isMotorProtocolDigital()) {
+        if (isMotorDshot(i)) {
             // If we use DSHOT we need to convert motorValue to DSHOT ranges
             if (feature(FEATURE_REVERSIBLE_MOTORS)) {
                 if (reversibleMotorsThrottleState == MOTOR_DIRECTION_FORWARD) {

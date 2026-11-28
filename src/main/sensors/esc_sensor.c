@@ -103,7 +103,11 @@ static void escSensorSelectNextMotor(void)
         escSensorMotor = 0;
     }
     else {
-        escSensorMotor = (escSensorMotor + 1) % getTelemetryMotorCount();
+        const int count = getTelemetryMotorCount();
+        for (int i = 0; i < count; i++) {
+            escSensorMotor = (escSensorMotor + 1) % count;
+            if (isMotorDshot(escSensorMotor)) break;
+        }
     }
 }
 
@@ -195,7 +199,12 @@ escSensorData_t * escSensorGetData(void)
 
         // Make sure we calculate our sensor values only from non-stale values
         if (usedEscSensorCount) {
-            escSensorDataCombined.current = (uint32_t)escSensorDataCombined.current * getTelemetryMotorCount() / usedEscSensorCount + escSensorConfig()->currentOffset;
+            int telemetryCount = getTelemetryMotorCount();
+            if (isMotorProtocolDshot() && !escSensorConfig()->listenOnly) {
+                telemetryCount = 0;
+                for (int i = 0; i < getMotorCount(); i++) if (isMotorDshot(i)) telemetryCount++;
+            }
+            escSensorDataCombined.current = (uint32_t)escSensorDataCombined.current * telemetryCount / usedEscSensorCount + escSensorConfig()->currentOffset;
             escSensorDataCombined.voltage = (uint32_t)escSensorDataCombined.voltage / usedEscSensorCount;
             escSensorDataCombined.rpm = (float)escSensorDataCombined.rpm / usedEscSensorCount;
         }
@@ -330,12 +339,14 @@ void escSensorUpdate(timeUs_t currentTimeUs)
         case ESC_SENSOR_WAIT_STARTUP:
             if (currentTimeMs > ESC_BOOTTIME_MS) {
                 escSensorMotor = 0;
+                if (!escSensorConfig()->listenOnly && !isMotorDshot(0)) escSensorSelectNextMotor();
                 escSensorState = ESC_SENSOR_READY;
             }
             break;
 
         case ESC_SENSOR_READY:
             if (!escSensorConfig()->listenOnly) {
+                if (!isMotorDshot(escSensorMotor)) return;
                 pwmRequestMotorTelemetry(escSensorMotor);
             }
             bufferPosition = 0;

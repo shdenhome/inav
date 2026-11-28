@@ -142,6 +142,9 @@ uint8_t esc4wayInit(void)
     memset(&escHardware, 0, sizeof(escHardware));
 
     for (int idx = 0; idx < getMotorCount(); idx++) {
+        // A mixed setup exposes only digital ESCs to the broadcast handshake.
+        // Pure analog setups retain legacy BLHeli passthrough support.
+        if (isMotorProtocolDshot() && !isMotorDshot(idx)) continue;
         ioTag_t tag = pwmGetMotorPinTag(idx);
         if (tag != IOTAG_NONE) {
             escHardware[escCount].io = IOGetByTag(tag);

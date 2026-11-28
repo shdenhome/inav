@@ -171,3 +171,8 @@
 #define MSP2_INAV_ESC_SRXL2_CALIBRATE           0x2234
 
 #define MSP2_INAV_MULTI_MAG_STATE 0x20A4 // paged individual MAG state, v1
+
+// Experimental per-timer protocol API v1. Legacy timer-output messages unchanged.
+#define MSP2_INAV_TIMER_MOTOR_PROTOCOLS 0x20A5
+#define MSP2_INAV_SET_TIMER_MOTOR_PROTOCOLS 0x20A6
+#define MSP2_INAV_TIMER_PROTOCOL_CAPABILITIES 0x20A7

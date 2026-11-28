@@ -3289,6 +3289,83 @@ static void cliTimerOutputMode(char *cmdline)
 
 }
 
+static const char *timerMotorProtocolName(uint8_t protocol)
+{
+    switch (protocol) {
+    case TIMER_MOTOR_PROTOCOL_DEFAULT: return "DEFAULT";
+    case PWM_TYPE_STANDARD: return "STANDARD";
+    case PWM_TYPE_DSHOT150: return "DSHOT150";
+    case PWM_TYPE_DSHOT300: return "DSHOT300";
+    case PWM_TYPE_DSHOT600: return "DSHOT600";
+    default: return "INVALID";
+    }
+}
+
+static void printTimerMotorProtocols(dumpFlags_e dumpFlags,
+    const timerMotorProtocolConfig_t *config, const timerMotorProtocolConfig_t *defaults, int timer)
+{
+    const char *format = "timer_motor_protocol %d %s";
+    for (int i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+        if (timer >= 0 && timer != i) {
+            continue;
+        }
+        const bool equalsDefault = defaults && config[i].protocol == defaults[i].protocol;
+        if (defaults) {
+            cliDefaultPrintLinef(dumpFlags, equalsDefault, format, i,
+                timerMotorProtocolName(defaults[i].protocol));
+        }
+        cliDumpPrintLinef(dumpFlags, equalsDefault, format, i,
+            timerMotorProtocolName(config[i].protocol));
+    }
+}
+
+static void cliTimerMotorProtocol(char *cmdline)
+{
+    char *saveptr;
+    char *timerText = strtok_r(cmdline, " ", &saveptr);
+    if (!timerText) {
+        printTimerMotorProtocols(DUMP_MASTER, timerMotorProtocols(0), NULL, -1);
+        return;
+    }
+    int timer = 0;
+    for (const char *c = timerText; *c; c++) {
+        if (*c < '0' || *c > '9' || timer >= HARDWARE_TIMER_DEFINITION_COUNT) {
+            cliShowParseError();
+            return;
+        }
+        timer = timer * 10 + (*c - '0');
+    }
+    if (timer >= HARDWARE_TIMER_DEFINITION_COUNT) {
+        cliShowParseError();
+        return;
+    }
+    const char *name = strtok_r(NULL, " ", &saveptr);
+    if (name) {
+        if (strtok_r(NULL, " ", &saveptr)) {
+            cliShowParseError();
+            return;
+        }
+        const uint8_t candidates[] = {TIMER_MOTOR_PROTOCOL_DEFAULT, PWM_TYPE_STANDARD,
+            PWM_TYPE_DSHOT150, PWM_TYPE_DSHOT300, PWM_TYPE_DSHOT600};
+        bool found = false;
+        for (unsigned i = 0; i < ARRAYLEN(candidates); i++) {
+            if (!sl_strcasecmp(name, timerMotorProtocolName(candidates[i])) &&
+                timerMotorProtocolOverrideValid(candidates[i])) {
+                timerMotorProtocolsMutable(timer)->protocol = candidates[i];
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            cliShowParseError();
+            return;
+        }
+        // Validate the final complete setup at boot. This permits dump replay
+        // without rejecting an intermediate partially restored combination.
+    }
+    printTimerMotorProtocols(DUMP_MASTER, timerMotorProtocols(0), NULL, timer);
+}
+
 static void printFeature(uint8_t dumpMask, const featureConfig_t *featureConfig, const featureConfig_t *featureConfigDefault)
 {
     uint32_t mask = featureConfig->enabledFeatures;
@@ -4645,6 +4722,8 @@ static void printConfig(const char *cmdline, bool doDiff)
 
         cliPrintHashLine("Timer overrides");
         printTimerOutputModes(dumpMask, timerOverrides_CopyArray, timerOverrides(0), -1);
+        cliPrintHashLine("Timer motor protocols");
+        printTimerMotorProtocols(dumpMask, timerMotorProtocols_CopyArray, timerMotorProtocols(0), -1);
 
         // print servo parameters
         cliPrintHashLine("Outputs [servo]");
@@ -5262,6 +5341,7 @@ const clicmd_t cmdTable[] = {
 #ifdef USE_OSD
     CLI_COMMAND_DEF("osd_layout", "get or set the layout of OSD items", "[<layout> [<item> [<col> <row> [<visible>]]]]", cliOsdLayout),
 #endif
+    CLI_COMMAND_DEF("timer_motor_protocol", "get or set the ESC protocol for a timer (reboot required).", "[<timer> [<DEFAULT|STANDARD|DSHOT150|DSHOT300|DSHOT600>]]", cliTimerMotorProtocol),
     CLI_COMMAND_DEF("timer_output_mode", "get or set the outputmode for a given timer.",  "[<timer> [<AUTO|MOTORS|SERVOS|LED|PINIO|BEEPER>]]", cliTimerOutputMode),
 };
 

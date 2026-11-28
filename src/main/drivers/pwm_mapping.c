@@ -52,6 +52,11 @@ enum {
     MAP_TO_LED_OUTPUT
 };
 
+#define TIMER_HW_MAX 64
+static uint32_t timerHardwareBaseFlags[TIMER_HW_MAX];
+static bool timerHardwareBaseFlagsSaved;
+static void pwmCalculateAssignmentForMotorCount(timMotorServoHardware_t *out, const uint8_t *proposedModes, uint8_t motorCount);
+
 static pwmInitError_e pwmInitError = PWM_INIT_ERROR_NONE;
 
 static const char * pwmInitErrorMsg[] = {
@@ -60,7 +65,8 @@ static const char * pwmInitErrorMsg[] = {
     /* PWM_INIT_ERROR_TOO_MANY_SERVOS */          "Mixer defines too many servos",
     /* PWM_INIT_ERROR_NOT_ENOUGH_MOTOR_OUTPUTS */ "Not enough motor outputs/timers",
     /* PWM_INIT_ERROR_NOT_ENOUGH_SERVO_OUTPUTS */ "Not enough servo outputs/timers",
-    /* PWM_INIT_ERROR_TIMER_INIT_FAILED */        "Output timer init failed"
+    /* PWM_INIT_ERROR_TIMER_INIT_FAILED */        "Output timer init failed",
+    /* PWM_INIT_ERROR_MOTOR_PROTOCOL_CONFLICT */ "Motor protocol/timer/DMA conflict"
 };
 
 static const motorProtocolProperties_t motorProtocolProperties[] = {
@@ -90,7 +96,8 @@ const char * getPwmInitErrorMessage(void)
 
 const motorProtocolProperties_t * getMotorProtocolProperties(motorPwmProtocolTypes_e proto)
 {
-    return &motorProtocolProperties[proto];
+    static const motorProtocolProperties_t unsupported = { false, false };
+    return (unsigned)proto < ARRAYLEN(motorProtocolProperties) ? &motorProtocolProperties[proto] : &unsupported;
 }
 
 static bool checkPwmTimerConflicts(const timerHardware_t *timHw)
@@ -156,7 +163,7 @@ static bool checkPwmTimerConflicts(const timerHardware_t *timHw)
 #endif
 
 #if defined(USE_SOFTSERIAL1)
-    if (feature(FEATURE_SOFTSERIAL)) {
+    if (featureConfigured(FEATURE_SOFTSERIAL)) {
         const timerHardware_t *ssrx = timerGetByTag(IO_TAG(SOFTSERIAL_1_RX_PIN), TIM_USE_ANY);
         const timerHardware_t *sstx = timerGetByTag(IO_TAG(SOFTSERIAL_1_TX_PIN), TIM_USE_ANY);
         if ((ssrx != NULL && ssrx->tim == timHw->tim) || (sstx != NULL && sstx->tim == timHw->tim)) {
@@ -166,7 +173,7 @@ static bool checkPwmTimerConflicts(const timerHardware_t *timHw)
 #endif
 
 #if defined(USE_SOFTSERIAL2)
-    if (feature(FEATURE_SOFTSERIAL)) {
+    if (featureConfigured(FEATURE_SOFTSERIAL)) {
         const timerHardware_t *ssrx = timerGetByTag(IO_TAG(SOFTSERIAL_2_RX_PIN), TIM_USE_ANY);
         const timerHardware_t *sstx = timerGetByTag(IO_TAG(SOFTSERIAL_2_TX_PIN), TIM_USE_ANY);
         if ((ssrx != NULL && ssrx->tim == timHw->tim) || (sstx != NULL && sstx->tim == timHw->tim)) {
@@ -176,7 +183,7 @@ static bool checkPwmTimerConflicts(const timerHardware_t *timHw)
 #endif
 
 #if defined(USE_LED_STRIP)
-    if (feature(FEATURE_LED_STRIP)) {
+    if (featureConfigured(FEATURE_LED_STRIP)) {
         for (int i = 0; i < timerHardwareCount; i++) {
             if (timHw->tim == timerHardware[i].tim && timerHardware[i].usageFlags & TIM_USE_LED) {
 				return true;
@@ -330,12 +337,15 @@ static void pwmAssignOutput(timMotorServoHardware_t *timOutputs, timerHardware_t
     }
 }
 
-void pwmBuildTimerOutputList(timMotorServoHardware_t *timOutputs)
+static void pwmBuildTimerOutputListForMotorCount(timMotorServoHardware_t *timOutputs, uint8_t motorCount)
 {
     timOutputs->maxTimMotorCount = 0;
     timOutputs->maxTimServoCount = 0;
 
-    const uint8_t motorCount = getMotorCount();
+    if (!timerHardwareBaseFlagsSaved && timerHardwareCount <= TIMER_HW_MAX) {
+        for (int i = 0; i < timerHardwareCount; i++) timerHardwareBaseFlags[i] = timerHardware[i].usageFlags;
+        timerHardwareBaseFlagsSaved = true;
+    }
 
     // Count servo outputs needed across all mixer profiles, matching
     // computeServoCount() / getServoCount() which also walk all profiles.
@@ -419,6 +429,27 @@ void pwmBuildTimerOutputList(timMotorServoHardware_t *timOutputs)
     }
 }
 
+void pwmBuildTimerOutputList(timMotorServoHardware_t *timOutputs)
+{
+    pwmBuildTimerOutputListForMotorCount(timOutputs, getMotorCount());
+}
+
+// The runtime count deliberately never changes during a VTOL transition. Candidate
+// configuration validation instead reads the union of the pending mixer profiles.
+static uint8_t pwmConfiguredMotorCount(void)
+{
+    uint8_t count = 0;
+    for (int i = 0; i < MAX_SUPPORTED_MOTORS; i++) {
+        bool used = false;
+        for (int j = 0; j < MAX_MIXER_PROFILE_COUNT; j++) {
+            used |= mixerMotorMixersByIndex(j)[i].throttle != 0.0f;
+        }
+        if (!used) break;
+        count++;
+    }
+    return count;
+}
+
 static bool motorsUseHardwareTimers(void)
 {
     return getMotorProtocolProperties(motorConfig()->motorPwmProtocol)->usesHwTimer;
@@ -430,6 +461,87 @@ static bool servosUseHardwareTimers(void)
         servoConfig()->servo_protocol == SERVO_TYPE_SBUS_PWM;
 }
 
+// Capabilities are conservative: all output pads of a group must support DMA.
+// Dynamic reservations and cross-group collisions are checked by the driver at init.
+uint16_t pwmTimerMotorProtocolMask(uint8_t timerIndex)
+{
+    bool found = false;
+#if defined(USE_DSHOT) && !defined(BRUSHED_MOTORS)
+    bool dmaCapable = true;
+#endif
+    for (int i = 0; i < timerHardwareCount; i++) {
+        if (timer2id(timerHardware[i].tim) != timerIndex) continue;
+        found = true;
+#if defined(USE_DSHOT) && !defined(BRUSHED_MOTORS)
+        if (!dmaGetByTag(timerHardware[i].dmaTag)) dmaCapable = false;
+#endif
+    }
+    if (!found) return 0;
+#ifdef BRUSHED_MOTORS
+    return 0; // inherited compile-time brushed protocol only
+#else
+    uint16_t mask = 1 << PWM_TYPE_STANDARD;
+#if defined(USE_DSHOT) && !defined(BRUSHED_MOTORS)
+    if (dmaCapable) mask |= (1 << PWM_TYPE_DSHOT150) | (1 << PWM_TYPE_DSHOT300) | (1 << PWM_TYPE_DSHOT600);
+#endif
+    return mask;
+#endif
+}
+
+bool pwmTimerMotorProtocolsValidate(const uint8_t *protocols)
+{
+    if (!protocols || timerHardwareCount > TIMER_HW_MAX) return false;
+    bool anyOverride = false;
+    for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+        if (protocols[i] == TIMER_MOTOR_PROTOCOL_DEFAULT) continue;
+        anyOverride = true;
+        if (protocols[i] >= 16 || !(pwmTimerMotorProtocolMask(i) & (1 << protocols[i]))) return false;
+    }
+    if (!anyOverride) return true; // exact legacy behavior remains available
+    if (motorConfig()->motorPwmProtocol > PWM_TYPE_SRXL2 || !motorsUseHardwareTimers()) return false; // UART protocol cannot share logical timer outputs
+
+    const uint8_t motorCount = pwmConfiguredMotorCount();
+    if (motorCount > MAX_MOTORS) return false;
+    timMotorServoHardware_t outputs = {0};
+    uint8_t modes[HARDWARE_TIMER_DEFINITION_COUNT];
+    for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) modes[i] = timerOverrides(i)->outputMode;
+    pwmCalculateAssignmentForMotorCount(&outputs, modes, motorCount);
+    if (motorCount > outputs.maxTimMotorCount) return false;
+    int first = -1;
+    int dshot = -1;
+    bool hasAnalog = false;
+    bool mixed = false;
+    for (int i = 0; i < motorCount; i++) {
+        const timerHardware_t *hw = outputs.timMotors[i];
+        const uint8_t override = protocols[timer2id(hw->tim)];
+        const uint8_t protocol = override == TIMER_MOTOR_PROTOCOL_DEFAULT ? motorConfig()->motorPwmProtocol : override;
+        if (first < 0) first = protocol;
+        mixed |= first != protocol;
+        if (getMotorProtocolProperties(protocol)->isDSHOT) {
+#ifndef USE_DSHOT
+            return false;
+#else
+            if (dshot >= 0 && dshot != protocol) return false;
+            dshot = protocol;
+            if (!(pwmTimerMotorProtocolMask(timer2id(hw->tim)) & (1 << protocol))) return false;
+#endif
+        } else {
+            hasAnalog = true;
+            if (mixed && protocol != PWM_TYPE_STANDARD) return false;
+        }
+    }
+    if (mixed) {
+        // Only STANDARD plus a single DShot speed is a V1 combination.
+        if (dshot < 0 || !hasAnalog || featureConfigured(FEATURE_REVERSIBLE_MOTORS)) return false;
+        for (int i = 0; i < motorCount; i++) {
+            uint8_t protocol = protocols[timer2id(outputs.timMotors[i]->tim)];
+            if (protocol == TIMER_MOTOR_PROTOCOL_DEFAULT) protocol = motorConfig()->motorPwmProtocol;
+            if (protocol != PWM_TYPE_STANDARD && !getMotorProtocolProperties(protocol)->isDSHOT) return false;
+        }
+    }
+    return true;
+}
+
 static void pwmInitMotors(timMotorServoHardware_t * timOutputs)
 {
     const int motorCount = getMotorCount();
@@ -438,6 +550,13 @@ static void pwmInitMotors(timMotorServoHardware_t * timOutputs)
     if (motorCount > MAX_MOTORS) {
         pwmInitError = PWM_INIT_ERROR_TOO_MANY_MOTORS;
         LOG_ERROR(PWM, "Too many motors. Mixer requested %d, max %d", motorCount, MAX_MOTORS);
+        return;
+    }
+
+    uint8_t protocols[HARDWARE_TIMER_DEFINITION_COUNT];
+    for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) protocols[i] = timerMotorProtocols(i)->protocol;
+    if (!pwmTimerMotorProtocolsValidate(protocols)) {
+        pwmInitError = PWM_INIT_ERROR_MOTOR_PROTOCOL_CONFLICT;
         return;
     }
 
@@ -540,7 +659,11 @@ bool pwmMotorAndServoInit(void)
 {
     pwmBuildTimerOutputList(&timOutputsStatic);
     pwmInitMotors(&timOutputsStatic);
-    pwmInitServos(&timOutputsStatic);
+    if (pwmInitError == PWM_INIT_ERROR_NONE) pwmInitServos(&timOutputsStatic);
+    if (pwmInitError != PWM_INIT_ERROR_NONE) {
+        pwmShutdownPulsesForAllMotors(MIN(getMotorCount(), MAX_MOTORS));
+        pwmDisableMotors();
+    }
     return (pwmInitError == PWM_INIT_ERROR_NONE);
 }
 
@@ -552,13 +675,11 @@ const timMotorServoHardware_t *pwmGetOutputAssignment(void)
 // Upper bound for timerHardware[] size across all supported targets.
 // timerHardwareCount is a runtime value; this constant prevents a VLA on the MSP
 // task stack. Targets with 22+ entries (e.g. OMNIBUSF4) need more than MAX_PWM_OUTPUTS.
-#define TIMER_HW_MAX 64
-
 // Simulate pwmBuildTimerOutputList() with proposed overrides without modifying live state.
 // IMPORTANT: Must only be called from the main loop / MSP task — not ISR-safe.
 // timerHardware[].usageFlags are modified in-place during the simulation; this function
 // saves and restores them so hardware state is identical on exit.
-void pwmCalculateAssignment(timMotorServoHardware_t *out, const uint8_t *proposedModes)
+static void pwmCalculateAssignmentForMotorCount(timMotorServoHardware_t *out, const uint8_t *proposedModes, uint8_t motorCount)
 {
     if (timerHardwareCount > TIMER_HW_MAX) {
         return; // Safety guard: target exceeds the buffer — increase TIMER_HW_MAX
@@ -569,6 +690,7 @@ void pwmCalculateAssignment(timMotorServoHardware_t *out, const uint8_t *propose
     uint32_t savedFlags[TIMER_HW_MAX];
     for (int i = 0; i < timerHardwareCount; i++) {
         savedFlags[i] = timerHardware[i].usageFlags;
+        if (timerHardwareBaseFlagsSaved) timerHardware[i].usageFlags = timerHardwareBaseFlags[i];
     }
 
     // Snapshot timerOverrides config so the proposed values can be applied temporarily.
@@ -581,7 +703,7 @@ void pwmCalculateAssignment(timMotorServoHardware_t *out, const uint8_t *propose
         timerOverridesMutable(i)->outputMode = proposedModes[i];
     }
 
-    pwmBuildTimerOutputList(out);
+    pwmBuildTimerOutputListForMotorCount(out, motorCount);
 
     for (int i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
         timerOverridesMutable(i)->outputMode = savedModes[i];
@@ -589,6 +711,11 @@ void pwmCalculateAssignment(timMotorServoHardware_t *out, const uint8_t *propose
     for (int i = 0; i < timerHardwareCount; i++) {
         timerHardware[i].usageFlags = savedFlags[i];
     }
+}
+
+void pwmCalculateAssignment(timMotorServoHardware_t *out, const uint8_t *proposedModes)
+{
+    pwmCalculateAssignmentForMotorCount(out, proposedModes, getMotorCount());
 }
 
 #endif

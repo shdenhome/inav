@@ -34,6 +34,7 @@
 #include "common/color.h"
 #include "common/maths.h"
 #include "common/streambuf.h"
+#include "fc/timer_motor_protocol_msp.h"
 #include "common/string_light.h"
 #include "common/bitarray.h"
 #include "common/time.h"
@@ -2264,6 +2265,32 @@ typedef struct PACKED {
 } mspSetMspRcInfo_t;
 STATIC_ASSERT(sizeof(mspSetMspRcInfo_t) == 15, mspSetMspRcInfo_t_size);
 
+// Both the legacy advanced-config message and generic point-setting writes
+// must preserve the same mixed-protocol invariants. This changes RAM only.
+static bool mspSetMotorProtocol(uint8_t proposedProtocol)
+{
+    if (proposedProtocol > PWM_TYPE_SRXL2 || ARMING_FLAG(ARMED)) {
+        return false;
+    }
+#if !defined(SITL_BUILD) && !defined(RP2350)
+    uint8_t overrides[HARDWARE_TIMER_DEFINITION_COUNT];
+    bool hasOverrides = false;
+    for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+        overrides[i] = timerMotorProtocols(i)->protocol;
+        hasOverrides |= overrides[i] != TIMER_MOTOR_PROTOCOL_DEFAULT;
+    }
+    const uint8_t previousProtocol = motorConfig()->motorPwmProtocol;
+    motorConfigMutable()->motorPwmProtocol = proposedProtocol;
+    if (hasOverrides && !pwmTimerMotorProtocolsValidate(overrides)) {
+        motorConfigMutable()->motorPwmProtocol = previousProtocol;
+        return false;
+    }
+#else
+    motorConfigMutable()->motorPwmProtocol = proposedProtocol;
+#endif
+    return true;
+}
+
 static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
 {
     uint8_t tmp_u8;
@@ -2936,7 +2963,10 @@ static mspResult_e mspFcProcessInCommand(uint16_t cmdMSP, sbuf_t *src)
             sbufReadU8(src);    // gyroConfig()->gyroSyncDenominator
             sbufReadU8(src);    // BF: masterConfig.pid_process_denom
             sbufReadU8(src);    // BF: motorConfig()->useUnsyncedPwm
-            motorConfigMutable()->motorPwmProtocol = sbufReadU8(src);
+            const uint8_t proposedProtocol = sbufReadU8(src);
+            if (!mspSetMotorProtocol(proposedProtocol)) {
+                return MSP_RESULT_ERROR;
+            }
             motorConfigMutable()->motorPwmRate = sbufReadU16(src);
             servoConfigMutable()->servoPwmRate = sbufReadU16(src);
             sbufReadU8(src);    //Was gyroSync
@@ -4284,7 +4314,13 @@ static bool mspSetSettingCommand(sbuf_t *dst, sbuf_t *src)
                 if (val > max) {
                     return false;
                 }
-                *((uint8_t*)ptr) = val;
+                if (ptr == &motorConfigMutable()->motorPwmProtocol) {
+                    if (!mspSetMotorProtocol(val)) {
+                        return false;
+                    }
+                } else {
+                    *((uint8_t*)ptr) = val;
+                }
             }
             break;
         case VAR_INT8:
@@ -5105,6 +5141,50 @@ bool mspFCProcessInOutCommand(uint16_t cmdMSP, sbuf_t *dst, sbuf_t *src, mspResu
 #ifdef USE_SIMULATOR
     case MSP_SIMULATOR:
         *ret = mspProcessSimulatorCommand(dst, src, dataSize);
+        break;
+#endif
+#if !defined(SITL_BUILD) && !defined(RP2350)
+    case MSP2_INAV_TIMER_MOTOR_PROTOCOLS:
+    case MSP2_INAV_TIMER_PROTOCOL_CAPABILITIES:
+        if (dataSize != 0) {
+            *ret = MSP_RESULT_ERROR;
+            break;
+        }
+        sbufWriteU8(dst, 1); // protocol version, unrelated to firmware version
+        sbufWriteU8(dst, HARDWARE_TIMER_DEFINITION_COUNT);
+        for (unsigned timer = 0; timer < HARDWARE_TIMER_DEFINITION_COUNT; timer++) {
+            sbufWriteU8(dst, timer);
+            if (cmdMSP == MSP2_INAV_TIMER_MOTOR_PROTOCOLS) {
+                sbufWriteU8(dst, timerMotorProtocols(timer)->protocol);
+                // Resolved configuration, not the immutable post-boot driver.
+                sbufWriteU8(dst, getEffectiveMotorProtocol(timer));
+            } else {
+                sbufWriteU16(dst, pwmTimerMotorProtocolMask(timer));
+            }
+        }
+        *ret = MSP_RESULT_ACK;
+        break;
+    case MSP2_INAV_SET_TIMER_MOTOR_PROTOCOLS:
+        {
+            uint8_t current[HARDWARE_TIMER_DEFINITION_COUNT];
+            uint8_t proposed[HARDWARE_TIMER_DEFINITION_COUNT];
+            for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+                current[i] = timerMotorProtocols(i)->protocol;
+            }
+            if (ARMING_FLAG(ARMED) || !timerMotorProtocolsDecode(src,
+                HARDWARE_TIMER_DEFINITION_COUNT, current, proposed) ||
+                !pwmTimerMotorProtocolsValidate(proposed)) {
+                *ret = MSP_RESULT_ERROR;
+                break;
+            }
+            for (unsigned i = 0; i < HARDWARE_TIMER_DEFINITION_COUNT; i++) {
+                timerMotorProtocolsMutable(i)->protocol = proposed[i];
+            }
+            // Settings only: no EEPROM writes or live timer reinitialization.
+            sbufWriteU8(dst, 1);
+            sbufWriteU8(dst, 0);
+            *ret = MSP_RESULT_ACK;
+        }
         break;
 #endif
 #ifndef SITL_BUILD
